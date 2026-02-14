@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.visa.mapper.VisaCountryMapper">
+    
+    <resultMap type="VisaCountry" id="VisaCountryResult">
+        <result property="id"    column="id"    />
+        <result property="name"    column="name"    />
+        <result property="code"    column="code"    />
+        <result property="continent"    column="continent"    />
+        <result property="flagUrl"    column="flag_url"    />
+        <result property="sort"    column="sort"    />
+        <result property="status"    column="status"    />
+    </resultMap>
+
+    <sql id="selectVisaCountryVo">
+        select id, name, code, continent, flag_url, sort, status from visa_country
+    </sql>
+
+    <select id="selectVisaCountryList" parameterType="VisaCountry" resultMap="VisaCountryResult">
+        <include refid="selectVisaCountryVo"/>
+        <where>  
+            <if test="name != null  and name != ''"> and name like concat('%', #{name}, '%')</if>
+            <if test="code != null  and code != ''"> and code = #{code}</if>
+            <if test="continent != null  and continent != ''"> and continent = #{continent}</if>
+            <if test="flagUrl != null  and flagUrl != ''"> and flag_url = #{flagUrl}</if>
+            <if test="sort != null "> and sort = #{sort}</if>
+            <if test="status != null  and status != ''"> and status = #{status}</if>
+        </where>
+    </select>
+    
+    <select id="selectVisaCountryById" parameterType="Long" resultMap="VisaCountryResult">
+        <include refid="selectVisaCountryVo"/>
+        where id = #{id}
+    </select>
+
+    <insert id="insertVisaCountry" parameterType="VisaCountry" useGeneratedKeys="true" keyProperty="id">
+        insert into visa_country
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="name != null and name != ''">name,</if>
+            <if test="code != null">code,</if>
+            <if test="continent != null">continent,</if>
+            <if test="flagUrl != null">flag_url,</if>
+            <if test="sort != null">sort,</if>
+            <if test="status != null">status,</if>
+         </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="name != null and name != ''">#{name},</if>
+            <if test="code != null">#{code},</if>
+            <if test="continent != null">#{continent},</if>
+            <if test="flagUrl != null">#{flagUrl},</if>
+            <if test="sort != null">#{sort},</if>
+            <if test="status != null">#{status},</if>
+         </trim>
+    </insert>
+
+    <update id="updateVisaCountry" parameterType="VisaCountry">
+        update visa_country
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="name != null and name != ''">name = #{name},</if>
+            <if test="code != null">code = #{code},</if>
+            <if test="continent != null">continent = #{continent},</if>
+            <if test="flagUrl != null">flag_url = #{flagUrl},</if>
+            <if test="sort != null">sort = #{sort},</if>
+            <if test="status != null">status = #{status},</if>
+        </trim>
+        where id = #{id}
+    </update>
+    <update id="updateCountryStatus">
+        update visa_country
+        set status = #{status}
+        where id = #{id}
+    </update>
+
+    <delete id="deleteVisaCountryById" parameterType="Long">
+        delete from visa_country where id = #{id}
+    </delete>
+
+    <delete id="deleteVisaCountryByIds" parameterType="String">
+        delete from visa_country where id in 
+        <foreach item="id" collection="array" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+</mapper>

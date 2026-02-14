@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.visa.mapper.VisaCartMapper">
+    
+    <resultMap type="VisaCart" id="VisaCartResult">
+        <result property="id"    column="id"    />
+        <result property="customerId"    column="customer_id"    />
+        <result property="productId"    column="product_id"    />
+        <result property="createTime"    column="create_time"    />
+        <result property="productTitle" column="product_title" />
+        <result property="productPrice" column="product_price" />
+        <result property="productImage" column="product_image" />
+        <result property="quantity" column="quantity" />
+    </resultMap>
+
+    <sql id="selectVisaCartVo">
+        select
+            c.id, c.customer_id, c.product_id, c.create_time,c.quantity,
+            p.title as product_title,
+            p.price as product_price,
+            p.image as product_image
+        from visa_cart c
+                 left join visa_product p on c.product_id = p.id
+    </sql>
+    <select id="selectVisaCartList" parameterType="VisaCart" resultMap="VisaCartResult">
+        <include refid="selectVisaCartVo"/>
+        <where>  
+            <if test="customerId != null "> and customer_id = #{customerId}</if>
+            <if test="productId != null "> and product_id = #{productId}</if>
+        </where>
+    </select>
+    
+    <select id="selectVisaCartById" parameterType="Long" resultMap="VisaCartResult">
+        <include refid="selectVisaCartVo"/>
+        where id = #{id}
+    </select>
+
+    <insert id="insertVisaCart" parameterType="VisaCart" useGeneratedKeys="true" keyProperty="id">
+        insert into visa_cart
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="customerId != null">customer_id,</if>
+            <if test="productId != null">product_id,</if>
+            <if test="createTime != null">create_time,</if>
+            <if test="quantity != null">quantity</if>
+         </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="customerId != null">#{customerId},</if>
+            <if test="productId != null">#{productId},</if>
+            <if test="createTime != null">#{createTime},</if>
+            <if test="quantity != null">quantity</if>
+         </trim>
+    </insert>
+
+    <update id="updateVisaCart" parameterType="VisaCart">
+        update visa_cart
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="customerId != null">customer_id = #{customerId},</if>
+            <if test="productId != null">product_id = #{productId},</if>
+            <if test="createTime != null">create_time = #{createTime},</if>
+            <if test="quantity != null">quantity = #{quantity},</if>
+        </trim>
+        where id = #{id}
+    </update>
+
+    <delete id="deleteVisaCartById" parameterType="Long">
+        delete from visa_cart where id = #{id}
+    </delete>
+
+    <delete id="deleteVisaCartByIds" parameterType="String">
+        delete from visa_cart where id in 
+        <foreach item="id" collection="array" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+</mapper>
