@@ -1,0 +1,20 @@
+// 背景色 (Apple 官网经典的浅灰)
+$bg-color: #F7F9FC;;
+
+// 主色调 奶蓝色
+$primary-color: #6AAFE6;  // 主色：清透的奶蓝
+$primary-hover: #8CC5F3;  // 悬浮：更浅一点，像蓝天
+$primary-active: #5396C8; // 点击：稍微深一点
+
+// 3. 辅助色
+$text-main: #2C3E50;       // 文字不用纯黑，用深蓝灰，更柔和
+$text-secondary: #909399;  // 次要文字
+
+// 4. 圆角：为了配合奶蓝，圆角要更大，更Q弹
+$radius-base: 16px;  // 输入框圆角
+$radius-card: 24px;  // 卡片圆角
+
+// 5. 阴影：这是精髓！不要用黑色阴影，要用“有颜色的光”
+// 这种阴影会让卡片看起来像是浮在蓝色的光晕上
+$shadow-base: 0 8px 24px rgba(106, 175, 230, 0.12); 
+$shadow-hover: 0 12px 32px rgba(106, 175, 230, 0.20);

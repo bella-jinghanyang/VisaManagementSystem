@@ -1,0 +1,16 @@
+@import './variables.scss';
+@import './element-ui.scss';
+
+/* 这里可以写一些全局通用的工具类 */
+.container-width {
+  width: 1200px;
+  margin: 0 auto;
+}
+
+/* 页面淡入动画 */
+.fade-enter-active, .fade-leave-active {
+  transition: opacity 0.4s;
+}
+.fade-enter, .fade-leave-to {
+  opacity: 0;
+}

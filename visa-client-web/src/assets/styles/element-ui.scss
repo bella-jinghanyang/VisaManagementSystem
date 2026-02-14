@@ -1,0 +1,81 @@
+// src/assets/styles/element-ui.scss
+@import './variables.scss';
+
+body {
+  background-color: $bg-color;
+  color: $text-main;
+}
+
+/* 1. 奶气十足的按钮 */
+.el-button {
+  border-radius: 50px !important; /* 彻底变成胶囊形 */
+  border: none;
+  font-weight: 600; /* 字体加粗一点，更可爱 */
+  padding: 12px 28px;
+  letter-spacing: 1px;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); /* Q弹的果冻动画 */
+
+  &:hover {
+    transform: translateY(-2px) scale(1.02);
+  }
+  
+  &:active {
+    transform: scale(0.95);
+  }
+}
+
+/* 主按钮：渐变色 */
+.el-button--primary {
+  // 从左上到右下的柔和渐变
+  background: linear-gradient(135deg, $primary-color 0%, $primary-hover 100%) !important;
+  box-shadow: 0 6px 15px rgba(106, 175, 230, 0.4); /* 蓝色投影 */
+  
+  &:hover {
+    box-shadow: 0 8px 20px rgba(106, 175, 230, 0.6);
+  }
+}
+
+/* 2. 输入框：像云朵一样 */
+.el-input__inner {
+  border-radius: $radius-base;
+  background-color: #FFFFFF;
+  border: 2px solid transparent; /* 预留边框位置 */
+  height: 48px; /* 更高一点 */
+  box-shadow: 0 4px 10px rgba(0,0,0,0.03);
+  color: $text-main;
+  transition: all 0.3s ease;
+
+  &:focus {
+    border-color: $primary-hover; // 聚焦变成奶蓝色
+    background-color: #FFFFFF;
+    box-shadow: 0 0 0 4px rgba(106, 175, 230, 0.15); // 柔和的光环
+  }
+  
+  &::placeholder {
+    color: #C0C4CC;
+  }
+}
+
+/* 3. 卡片优化 */
+.el-card {
+  border: none !important;
+  border-radius: $radius-card !important;
+  background: #FFFFFF;
+  // 这里的阴影用了变量里的蓝光阴影
+  box-shadow: $shadow-base !important; 
+}
+
+/* 4. 标签 Tag 也要奶一点 */
+.el-tag {
+  border: none;
+  border-radius: 8px;
+  
+  &.el-tag--success {
+    background-color: #E1F3D8;
+    color: #67C23A;
+  }
+  &.el-tag--warning {
+    background-color: #FAECD8;
+    color: #E6A23C;
+  }
+}
