@@ -50,6 +50,12 @@ const routes = [
         name: 'OrderUpload',
         component: () => import('@/views/user/Upload.vue'),
         meta: { title: '上传材料' }
+      },
+      {
+        path: 'ai-chat',
+        name: 'AiChat',
+        component: () => import('@/views/ai/index.vue'),
+        meta: { title: '智能助手' }
       }
 
     ]

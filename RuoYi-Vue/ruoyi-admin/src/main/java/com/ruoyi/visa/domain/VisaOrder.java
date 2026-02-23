@@ -107,6 +107,16 @@ public class VisaOrder extends BaseEntity
     /** check补交材料 */
     private String supplementaryMaterials;
 
+    private String isCommented;
+
+    private Long commentId;
+    private Integer commentRate;
+    private String commentText;
+    private String adminReply;
+    private String additionalContent;
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    private Date additionalTime;
+
     public void setId(Long id)
     {
         this.id = id;
@@ -329,6 +339,64 @@ public class VisaOrder extends BaseEntity
 
     public void setSupplementaryMaterials(String supplementaryMaterials) {
         this.supplementaryMaterials = supplementaryMaterials;
+    }
+
+
+
+    public String getIsCommented() {
+        return isCommented;
+    }
+
+    public void setIsCommented(String isCommented) {
+        this.isCommented = isCommented;
+    }
+
+    public Long getCommentId() {
+        return commentId;
+    }
+
+    public void setCommentId(Long commentId) {
+        this.commentId = commentId;
+    }
+
+    public Integer getCommentRate() {
+        return commentRate;
+    }
+
+    public void setCommentRate(Integer commentRate) {
+        this.commentRate = commentRate;
+    }
+
+    public String getCommentText() {
+        return commentText;
+    }
+
+    public void setCommentText(String commentText) {
+        this.commentText = commentText;
+    }
+
+    public String getAdminReply() {
+        return adminReply;
+    }
+
+    public void setAdminReply(String adminReply) {
+        this.adminReply = adminReply;
+    }
+
+    public String getAdditionalContent() {
+        return additionalContent;
+    }
+
+    public void setAdditionalContent(String additionalContent) {
+        this.additionalContent = additionalContent;
+    }
+
+    public Date getAdditionalTime() {
+        return additionalTime;
+    }
+
+    public void setAdditionalTime(Date additionalTime) {
+        this.additionalTime = additionalTime;
     }
 
     @Override

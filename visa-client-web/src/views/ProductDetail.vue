@@ -46,6 +46,21 @@
           </div>
         </div>
 
+        <!-- 在 ProductDetail.vue 的 main-info 区域插入 -->
+        <apple-card class="mb-30 range-card">
+          <h3 class="section-title">办理范围</h3>
+          <div class="range-content">
+            <div class="district-info">
+              <span class="current-d">{{ product.districtName }}</span>
+              <span class="area-list">{{ product.coverArea }}</span>
+            </div>
+            <div class="rule-box">
+              <p><i class="el-icon-info"></i> <strong>户籍要求：</strong> 护照签发地或常住地需在上述省份内。</p>
+              <p><i class="el-icon-postcard"></i> <strong>异地办理：</strong> 若户籍不在以上省份，需提供连续 6 个月的社保缴纳证明或有效的居住证。</p>
+            </div>
+          </div>
+        </apple-card>
+
         <!-- 3. 所需材料 (最重要) -->
         <apple-card class="mb-30">
           <h3 class="section-title">准备材料</h3>
@@ -69,6 +84,47 @@
                   @click="item.templateUrl ? downloadTemplate(item.templateUrl) : null">
                   {{ item.templateUrl ? '下载模板' : '无需模板' }}
                 </el-button>
+              </div>
+            </div>
+          </div>
+        </apple-card>
+
+        <!-- 4. 评分与评论 (App Store 风格) -->
+        <apple-card class="mb-30 reviews-section">
+          <div class="reviews-header">
+            <h3 class="section-title">评分与评论</h3>
+            <div class="summary-box">
+              <div class="score-num">4.8</div>
+              <div class="score-right">
+                <div class="stars-text">满分 5 分</div>
+                <el-rate v-model="avgRate" disabled text-color="#ff9900"></el-rate>
+              </div>
+            </div>
+          </div>
+
+          <div class="reviews-list">
+            <!-- 循环渲染评价列表 -->
+            <div v-for="rev in reviews" :key="rev.id" class="review-item">
+              <div class="rev-user">
+                <el-avatar :size="32" :src="$getImgUrl(rev.customerAvatar)"></el-avatar>
+                <span class="username">{{ maskName(rev.customerNickname) }}</span>
+                <span class="rev-date">{{ rev.createTime }}</span>
+              </div>
+              <div class="rev-stars">
+                <el-rate v-model="rev.rating" disabled></el-rate>
+              </div>
+              <p class="rev-content">{{ rev.content }}</p>
+
+              <!-- 晒图预览 -->
+              <div class="rev-images" v-if="rev.images">
+                <el-image v-for="(img, i) in parseJson(rev.images)" :key="i" :src="$getImgUrl(img)"
+                  :preview-src-list="[...parseJson(rev.images).map(url => $getImgUrl(url))]" class="rev-img-mini" />
+              </div>
+
+              <!-- 官方回复 -->
+              <div class="admin-reply" v-if="rev.adminReply">
+                <span class="reply-label">官方回复：</span>
+                <p>{{ rev.adminReply }}</p>
               </div>
             </div>
           </div>
@@ -345,4 +401,70 @@ export default {
 }
 
 .bottom-tips { text-align: center; color: #C0C4CC; font-size: 12px; margin-top: 20px; }
+
+.range-card {
+  background: linear-gradient(135deg, #ffffff 0%, #f0f7ff 100%) !important;
+}
+
+.district-info {
+  margin-bottom: 15px;
+  .current-d {
+    font-size: 18px;
+    font-weight: 700;
+    color: $primary-color;
+    margin-right: 15px;
+  }
+  .area-list {
+    font-size: 14px;
+    color: $text-main;
+  }
+}
+
+.rule-box {
+  background: rgba(255, 255, 255, 0.5);
+  padding: 15px;
+  border-radius: 12px;
+  p {
+    font-size: 13px;
+    color: #666;
+    margin-bottom: 8px;
+    &:last-child { margin-bottom: 0; }
+    i { color: $primary-color; margin-right: 5px; }
+  }
+}
+
+.reviews-section {
+  .reviews-header {
+    display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 40px;
+    .summary-box {
+      display: flex; align-items: center; gap: 15px;
+      .score-num { font-size: 48px; font-weight: 800; color: $text-main; }
+      .stars-text { font-size: 12px; color: #999; margin-bottom: 4px; }
+    }
+  }
+}
+
+.review-item {
+  padding: 25px 0; border-bottom: 1px solid #f0f2f5;
+  &:last-child { border-bottom: none; }
+
+  .rev-user {
+    display: flex; align-items: center; gap: 10px; margin-bottom: 12px;
+    .username { font-weight: 600; font-size: 14px; color: $text-main; }
+    .rev-date { color: #ccc; font-size: 12px; margin-left: auto; }
+  }
+
+  .rev-content { font-size: 15px; line-height: 1.6; color: #444; margin: 12px 0; }
+
+  .rev-images {
+    display: flex; gap: 10px; margin-bottom: 15px;
+    .rev-img-mini { width: 80px; height: 80px; border-radius: 8px; cursor: zoom-in; }
+  }
+
+  .admin-reply {
+    background: #F7F9FC; padding: 15px; border-radius: 12px; font-size: 14px;
+    .reply-label { font-weight: 700; color: $primary-color; display: block; margin-bottom: 5px; }
+    p { color: #666; margin: 0; }
+  }
+}
 </style>

@@ -30,6 +30,13 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <result property="isInterviewRequired" column="is_interview_required" />
         <result property="interviewSlots" column="interview_slots" />
         <result property="supplementaryMaterials" column="supplementary_materials" />
+        <result property="isCommented" column="is_commented" />
+        <result property="commentId"    column="comment_id"    />
+        <result property="commentRate"  column="comment_rate"  />
+        <result property="commentText"  column="comment_text"  />
+        <result property="adminReply"   column="admin_reply"   />
+        <result property="additionalContent" column="additional_content" />
+        <result property="additionalTime"    column="additional_time"    />
     </resultMap>
 
     <sql id="selectVisaOrderVo">
@@ -58,9 +65,17 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             vo.del_flag,
             vo.interview_slots,
             vo.supplementary_materials,
-            vp.is_interview_required
+            vo.is_commented,
+            vp.is_interview_required,
+            vc.id as comment_id,
+            vc.rating as comment_rate,
+            vc.content as comment_text,
+            vc.admin_reply as admin_reply,
+            vc.additional_content as additional_content,
+            vc.additional_time as additional_time
         from visa_order vo
                  left join visa_product vp on vo.product_id = vp.id
+                 left join visa_comment vc on vo.id = vc.order_id
     </sql>
 
     <select id="selectVisaOrderList" parameterType="VisaOrder" resultMap="VisaOrderResult">
@@ -183,6 +198,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="delFlag != null">del_flag = #{delFlag},</if>
             <if test="interviewSlots != null">interview_slots = #{interviewSlots},</if>
             <if test="supplementaryMaterials != null">supplementary_materials = #{supplementaryMaterials},</if>
+            <if test="isCommented != null">is_commented = #{isCommented},</if>
         </trim>
         where id = #{id}
     </update>

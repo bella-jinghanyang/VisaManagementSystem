@@ -43,6 +43,25 @@
             </span>
           </div>
         </div>
+
+        <!-- 领区筛选 -->
+      <div class="filter-row mt-20">
+        <span class="label">办签领区：</span>
+        <div class="options">
+          <span class="capsule" :class="{ active: !queryParams.districtId }"
+            @click="handleFilter('districtId', null)">全部领区</span>
+            <!-- 循环领区胶囊 -->
+           <el-popover v-for="d in districtList" :key="d.id" placement="top" trigger="hover"
+              :content="'覆盖省份：' + (d.coverArea || '全国通用')" :disabled="!d.coverArea">
+              <span slot="reference" class="capsule" :class="{ active: queryParams.districtId === d.id }"
+                @click="handleFilter('districtId', d.id)">
+                {{ d.name }}
+              </span>
+            </el-popover>
+
+        </div>
+      </div>
+
       </div>
 
       <!-- 2. 产品列表 (使用 AppleCard) -->
@@ -89,7 +108,7 @@
 <script>
 import AppleCard from '@/components/AppleCard'
 import { listProduct } from '@/api/product'
-import { listCountry, listType } from '@/api/common'
+import { listCountry, listType, listDistrict } from '@/api/common'
 
 export default {
   components: { AppleCard },
@@ -98,12 +117,14 @@ export default {
       queryParams: {
         countryId: null,
         typeId: null,
+        districtId: null,
         pageNum: 1,
         pageSize: 12
       },
       countryList: [],
       typeList: [],
       productList: [],
+      districtList: [],
       total: 0
 
     }
@@ -118,6 +139,7 @@ export default {
       // 获取筛选条件
       listCountry().then(res => { this.countryList = res.data })
       listType().then(res => { this.typeList = res.data })
+      listDistrict().then(res => { this.districtList = res.data })
     },
     getList () {
       listProduct(this.queryParams).then(res => {
@@ -159,9 +181,19 @@ export default {
 
 /* 筛选区样式 - 胶囊风格 */
 .filter-section {
+  background-color: #fff;
+  // margin-bottom: 40px;
+  // padding: 0 20px;
+  padding: 30px;
+  border-radius: 24px;
   margin-bottom: 40px;
-  padding: 0 20px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.02);
 }
+
+.mt-20 {
+  margin-top: 25px; // 稍微加大行间距，更有呼吸感
+}
+
 .filter-row {
   display: flex;
   align-items: center;
@@ -177,12 +209,13 @@ export default {
   color: $text-secondary;
   cursor: pointer;
   transition: all 0.3s;
+  font-weight: 500;
 
   &:hover { color: $primary-color; background: rgba(106, 175, 230, 0.1); }
   &.active {
     background: $primary-color;
     color: #fff;
-    box-shadow: $shadow-hover;
+    box-shadow: 0 4px 15px rgba(106, 175, 230, 0.4);
   }
 }
 

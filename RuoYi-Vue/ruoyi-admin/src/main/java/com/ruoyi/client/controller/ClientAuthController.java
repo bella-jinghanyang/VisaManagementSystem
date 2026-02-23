@@ -3,6 +3,7 @@ package com.ruoyi.client.controller;
 import com.ruoyi.common.annotation.Anonymous;
 import com.ruoyi.common.core.controller.BaseController;
 import com.ruoyi.common.core.domain.AjaxResult;
+import com.ruoyi.common.core.redis.RedisCache;
 import com.ruoyi.common.utils.SecurityUtils;
 import com.ruoyi.common.utils.StringUtils;
 import com.ruoyi.visa.domain.CCustomer;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 /**
  * C端客户认证接口
@@ -25,6 +27,9 @@ public class ClientAuthController extends BaseController {
 
     @Autowired
     private ICCustomerService customerService;
+
+    @Autowired
+    private RedisCache redisCache;
 
     /**
      * 注册
@@ -82,7 +87,7 @@ public class ClientAuthController extends BaseController {
         }
 
         // 3. 校验状态
-        if ("1".equals(user.getStatus())) { // 假设1是停用
+        if ("0".equals(user.getStatus())) { // 假设0是停用
             return error("对不起，您的账号已被封禁");
         }
 
@@ -93,6 +98,10 @@ public class ClientAuthController extends BaseController {
         // 4. 生成简单 Token (毕设偷懒做法：用 UUID 当 Token)
         // 实际项目应该存 Redis，这里为了简单直接返回
         String token = UUID.randomUUID().toString();
+
+        // ★★★ 核心：将 Token 存入 Redis，并设置过期时间（例如 30 分钟）
+        // key: "client_token:xxxx", value: 用户信息, timeout: 30, unit: 分钟
+        redisCache.setCacheObject("client_token:" + token, user, 30, TimeUnit.MINUTES);
 
         // 5. 返回结果 (把用户信息也返回去，前端好存 ID)
         AjaxResult ajax = AjaxResult.success("登录成功");

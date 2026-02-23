@@ -124,8 +124,17 @@ export default {
         this.isLogin = false
         this.userInfo = {}
 
-        this.$router.push('/')
+        if (this.$route.path !== '/') {
+          this.$router.push('/').catch(err => { console.error(err) })
+        } else {
+          // 如果已经在首页了，就刷新一下页面，清除页面上的个人数据
+          // location.reload(); // 或者啥也不干
+          console.log('已经在首页，无需重复跳转')
+        }
+
         this.$message.success('已退出登录')
+        // 通知 App.vue 活跃时间重置
+        this.$bus.$emit('order-updated')
       } else if (cmd === 'order') {
         this.$router.push('/user/orders')
       } else if (cmd === 'profile') {

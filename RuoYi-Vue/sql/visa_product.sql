@@ -182,3 +182,43 @@ CREATE TABLE `visa_cart`
   DEFAULT CHARSET = utf8mb4 COMMENT ='购物车表';
 
 ALTER TABLE `visa_cart` ADD COLUMN `quantity` INT DEFAULT 1 COMMENT '产品数量';
+
+-- 7. 签证知识库表 --
+DROP TABLE IF EXISTS `visa_knowledge`;
+CREATE TABLE `visa_knowledge`
+(
+    `id`          BIGINT(20)   NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    `category`    VARCHAR(50)  DEFAULT NULL COMMENT '分类(如:日本/美国/通用)',
+    `title`       VARCHAR(200) NOT NULL COMMENT '知识点标题',
+    `keywords`    VARCHAR(500) DEFAULT NULL COMMENT '搜索关键词(逗号分隔)',
+    `content`     TEXT         NOT NULL COMMENT '详细内容(给AI看的资料)',
+    `status`      CHAR(1)      DEFAULT '0' COMMENT '状态(0正常 1停用)',
+    `create_time` DATETIME     DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4 COMMENT ='签证知识库表';
+
+-- 8. 签证评价表 --
+DROP TABLE IF EXISTS `visa_comment`;
+CREATE TABLE `visa_comment`
+(
+    `id`          BIGINT(20) NOT NULL AUTO_INCREMENT COMMENT '评价ID',
+    `order_id`    BIGINT(20) NOT NULL COMMENT '关联订单ID',
+    `product_id`  BIGINT(20) NOT NULL COMMENT '关联产品ID',
+    `customer_id` BIGINT(20) NOT NULL COMMENT '关联客户ID',
+    `rating`      TINYINT(1) DEFAULT 5 COMMENT '评分(1-5星)',
+    `content`     TEXT       NOT NULL COMMENT '评价内容',
+    `images`      JSON       DEFAULT NULL COMMENT '晒图(JSON数组)',
+    `admin_reply` TEXT       DEFAULT NULL COMMENT '管理员回复',
+    `reply_time`  DATETIME   DEFAULT NULL COMMENT '回复时间',
+    `create_time` DATETIME   DEFAULT CURRENT_TIMESTAMP COMMENT '评价时间',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_order_id` (`order_id`) USING BTREE, -- ★ 确保一笔订单只能评价一次
+    INDEX `idx_product_id` (`product_id`) USING BTREE
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4 COMMENT ='签证评价表';
+
+ALTER TABLE `visa_order` ADD COLUMN `is_commented` CHAR(1) DEFAULT '0' COMMENT '是否评价(0未评 1已评)';
+
+ALTER TABLE `visa_comment` ADD COLUMN `additional_content` TEXT COMMENT '追加评价内容';
+ALTER TABLE `visa_comment` ADD COLUMN `additional_time` DATETIME COMMENT '追加评价时间';

@@ -22,6 +22,7 @@
         <result property="countryName" column="country_name"/>
         <result property="typeName" column="type_name"/>
         <result property="districtName" column="district_name"/>
+        <result property="coverArea" column="cover_area" />
     </resultMap>
 
     <sql id="selectVisaProductVo">
@@ -40,7 +41,8 @@
                p.max_stay_days,
                c.name as country_name,
                t.name as type_name,
-               d.name as district_name
+               d.name as district_name,
+               d.cover_area as cover_area
         from visa_product p
                  left join visa_country c on p.country_id = c.id
                  left join visa_type t on p.type_id = t.id

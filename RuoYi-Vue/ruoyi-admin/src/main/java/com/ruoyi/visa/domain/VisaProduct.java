@@ -70,6 +70,7 @@ public class VisaProduct extends BaseEntity
     private String countryName;
     private String typeName;
     private String districtName;
+    private String coverArea;
 
     public void setId(Long id) 
     {
@@ -223,6 +224,14 @@ public class VisaProduct extends BaseEntity
 
     public void setDistrictName(String districtName) {
         this.districtName = districtName;
+    }
+
+    public String getCoverArea() {
+        return coverArea;
+    }
+
+    public void setCoverArea(String coverArea) {
+        this.coverArea = coverArea;
     }
 
     @Override

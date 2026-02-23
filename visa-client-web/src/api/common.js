@@ -15,3 +15,11 @@ export function listType () {
     method: 'get'
   })
 }
+
+// 获取领区列表
+export function listDistrict () {
+  return request({
+    url: '/client/product/district',
+    method: 'get'
+  })
+}

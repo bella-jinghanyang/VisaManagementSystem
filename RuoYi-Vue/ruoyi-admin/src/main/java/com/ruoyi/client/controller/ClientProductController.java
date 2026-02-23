@@ -5,9 +5,11 @@ import com.ruoyi.common.core.controller.BaseController;
 import com.ruoyi.common.core.domain.AjaxResult;
 import com.ruoyi.common.core.page.TableDataInfo;
 import com.ruoyi.visa.domain.VisaCountry;
+import com.ruoyi.visa.domain.VisaDistrict;
 import com.ruoyi.visa.domain.VisaProduct;
 import com.ruoyi.visa.domain.VisaType;
 import com.ruoyi.visa.service.IVisaCountryService;
+import com.ruoyi.visa.service.IVisaDistrictService;
 import com.ruoyi.visa.service.IVisaProductService;
 import com.ruoyi.visa.service.IVisaTypeService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,6 +31,9 @@ public class ClientProductController extends BaseController {
 
     @Autowired
     private IVisaTypeService typeService;
+
+    @Autowired
+    private IVisaDistrictService districtService;
 
     /**
      * 获取所有上架的国家
@@ -55,15 +60,17 @@ public class ClientProductController extends BaseController {
     }
 
     /**
-     * 查询上架的签证产品列表
+     * 获取所有上架的领区
+     * @return
      */
-//    @Anonymous // 允许C端用户不登录直接访问
-//    @GetMapping("/list")
-//    public AjaxResult list(VisaProduct product) {
-//        product.setStatus(1); // 强制只查上架状态(1)的产品
-//        List<VisaProduct> list = productService.selectVisaProductList(product);
-//        return success(list);
-//    }
+    @Anonymous
+    @GetMapping("/district")
+    public AjaxResult district() {
+        VisaDistrict query = new VisaDistrict();
+        query.setStatus("1"); // 只查上架的领区
+        List<VisaDistrict> list = districtService.selectVisaDistrictList(query);
+        return success(list);
+    }
 
     /**
      * 查询产品详情

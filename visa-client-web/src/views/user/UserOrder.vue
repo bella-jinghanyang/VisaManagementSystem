@@ -1,181 +1,82 @@
 <template>
   <div class="order-list-page container-width">
+    <!-- 1. 顶部标题与搜索 -->
     <div class="page-header">
-      <h2>我的订单</h2>
-      <p>管理您的签证申请进度</p>
+      <div class="header-left">
+        <h2>我的订单</h2>
+        <p>管理您的签证申请进度</p>
+      </div>
+
+      <!-- 搜索订单功能 -->
+      <div class="header-right">
+        <div class="search-wrapper">
+          <input
+            v-model="searchKey"
+            placeholder="搜索订单号或签证名称..."
+            @input="handleSearch"
+          />
+          <i class="el-icon-search"></i>
+        </div>
+      </div>
     </div>
 
-    <!-- 加载中 -->
+    <!-- 2. 分类切换 -->
+    <div class="order-tabs">
+      <div
+        v-for="tab in tabOptions"
+        :key="tab.key"
+        :class="['tab-item', { active: activeTab === tab.key }]"
+        @click="handleTabChange(tab.key)"
+      >
+        {{ tab.label }}
+        <!-- 气泡数字：显示该状态下的订单数量 -->
+        <span class="tab-count" v-if="getTabCount(tab.key) > 0">
+          {{ getTabCount(tab.key) }}
+        </span>
+      </div>
+    </div>
+
+    <!-- 3. 加载中 -->
     <div v-if="loading" class="loading-box">
       <i class="el-icon-loading"></i> 加载中...
     </div>
 
-    <!-- 有数据 -->
-    <div v-else-if="orderList.length > 0" class="order-list">
-      <apple-card v-for="order in orderList" :key="order.id" class="order-item mb-20">
-        <!-- 1. 上半部分：订单基本信息 -->
-        <div class="order-body">
-          <div class="img-box">
-            <img :src="$getImgUrl(parseSnapshot(order.productSnapshot).image)" class="prod-img">
+    <!-- 4. 订单列表 -->
+    <div v-else-if="filteredOrders.length > 0" class="order-list">
+
+      <apple-card
+        v-for="order in filteredOrders"
+        :key="order.id"
+        class="compact-order-card mb-20"
+        @click.native="openDetailDrawer(order)"
+      >
+        <div class="card-inner">
+          <!-- 左侧：封面图 -->
+          <div class="img-side">
+            <img :src="$getImgUrl(parseSnapshot(order.productSnapshot).image)" class="mini-cover">
           </div>
 
-          <div class="order-info">
-            <div class="top-row">
-              <span class="order-no">单号：{{ order.orderNo }}</span>
-              <span class="order-time">{{ order.createTime }}</span>
-            </div>
-            <h3 class="title">{{ parseSnapshot(order.productSnapshot).title }}</h3>
-            <div class="price-row">
-              <span class="qty">{{ order.quantity }} 人办理</span>
-              <span class="money">￥{{ order.totalAmount }}</span>
+          <!-- 中间：核心信息 -->
+          <div class="info-side">
+            <div class="order-no-row">单号：{{ order.orderNo }}</div>
+            <h3 class="product-title">{{ parseSnapshot(order.productSnapshot).title }}</h3>
+            <div class="data-row">
+              <span class="qty">{{ order.quantity }}人办理</span>
+              <span class="divider"></span>
+              <span class="price">￥{{ order.totalAmount }}</span>
             </div>
           </div>
 
-          <!-- 右上角仅保留状态标签和驳回原因 -->
-          <div class="status-top-right">
-            <div class="status-wrapper">
-              <div :class="['status-badge', 'status-' + order.status]">
-                {{ statusMap[order.status] || '未知状态' }}
-              </div>
-              <!-- 驳回原因气泡 -->
-              <el-popover v-if="order.status === 3" placement="top" title="修改意见" width="200" trigger="hover"
-                :content="order.auditRemark || '请核对材料后重新上传。'">
-                <i slot="reference" class="el-icon-warning remark-icon"></i>
-              </el-popover>
+          <!-- 右侧：状态标签与箭头 -->
+          <div class="status-side">
+            <div :class="['status-text', 'color-' + order.status]">
+              {{ statusMap[order.status] }}
             </div>
+            <i class="el-icon-arrow-right arrow-icon"></i>
           </div>
         </div>
-
-        <!-- ★★★ 新增：面试时间选择胶囊 ★★★ -->
-        <!-- 逻辑：状态为 7(待预约) 且 管理员发了方案 且 用户还没选定最终时间 时显示 -->
-        <div v-if="order.status === 7 && order.interviewSlots && !order.interviewTime" class="slot-selection-card">
-          <div class="notice-header">
-            <i class="el-icon-date"></i> 请选择您的面试意向时间
-          </div>
-          <p class="notice-tip">管理员已为您争取到以下可选时段，请选择一个最方便的：</p>
-
-          <div class="slots-grid">
-            <div v-for="(time, index) in parseJson(order.interviewSlots)" :key="index" class="time-capsule"
-              @click="handleConfirmTime(order, time)">
-              <div class="date-text">{{ time.split(' ')[0] }}</div>
-              <div class="time-text">{{ time.split(' ')[1] }}</div>
-            </div>
-          </div>
-
-          <div class="chat-hint">
-            时间都不合适？ <el-button type="text" @click="handleOpenChat(order)">点击留言告知客服</el-button>
-          </div>
-        </div>
-
-        <!-- 状态 8：显示最终确定的面试信息 -->
-        <div v-if="order.status === 8" class="interview-final-notice">
-          <div class="final-header"><i class="el-icon-message-solid"></i> 面试预约已就绪</div>
-          <div class="final-body">
-            <p><span>面试时间：</span><strong>{{ order.interviewTime }}</strong></p>
-            <p><span>面试地点：</span><strong>{{ order.interviewLocation || '请下载预约单查看详情' }}</strong></p>
-
-            <div class="final-actions">
-              <el-button v-if="order.interviewFile" type="warning" size="mini" round icon="el-icon-download"
-                @click="downloadTemplate(order.interviewFile, '面试确认单')">
-                下载预约确认单
-              </el-button>
-            </div>
-          </div>
-        </div>
-
-        <!-- ★★★ 修改后的办理结果与物流区（状态4, 5, 6均显示） ★★★ -->
-        <div v-if="order.status >= 4 && order.visaResult" class="final-result-card">
-          <div class="result-header">
-            <span class="label">办理进度明细：</span>
-          </div>
-
-          <!-- 1. 分人结果列表 -->
-          <div v-for="(res, idx) in parseJson(order.visaResult)" :key="idx" class="person-res-row">
-            <div class="res-left">
-              <span class="p-name">申请人 {{ idx + 1 }}: </span>
-              <el-tag :type="getResultTagType(res.status)" size="mini" round>
-                {{ getResultText(res.status) }}
-              </el-tag>
-
-              <!-- 已传补件预览 -->
-              <div v-if="getSuppFileList(order, idx).length > 0" class="quick-preview-box">
-                <el-link v-for="(fileUrl, fIdx) in getSuppFileList(order, idx)" :key="fIdx" type="primary"
-                  :underline="false" class="mini-file-link" @click="downloadTemplate(fileUrl, '补交材料')">
-                  <i class="el-icon-document"></i> 附件{{ fIdx + 1 }}
-                </el-link>
-              </div>
-
-              <!-- 管理员备注 -->
-              <span class="res-memo" v-if="res.memo">({{ res.memo }})</span>
-            </div>
-
-            <!-- 如果被 Check (状态3)，显示补件按钮 -->
-            <div class="res-right" v-if="res.status == 3">
-              <el-button type="primary" size="mini" icon="el-icon-plus" @click="handleUploadSupplementary(order, idx)">
-                补交材料
-              </el-button>
-            </div>
-          </div>
-
-          <!-- 2. 物流信息 (仅在有单号时显示) -->
-          <div class="shipping-box" v-if="order.trackingNumber" style="margin-top: 15px;">
-            <div class="ship-info">
-              <i class="el-icon-truck"></i>
-              <span>护照已通过顺丰寄回：<strong>{{ order.trackingNumber }}</strong></span>
-            </div>
-          </div>
-
-          <!-- 3. 全员拒签的特殊提示 -->
-          <div v-else-if="order.status === 6" class="no-shipping-tip" style="margin-top: 15px; font-size: 13px; color: #909399;">
-            <i class="el-icon-info"></i> 本订单已结案。由于未产生过签护照，无回寄物流。
-          </div>
-        </div>
-
-        <!-- 2. 底部工具栏 (核心修改) -->
-        <div class="order-footer">
-          <div class="footer-left">
-            <!-- 预留位置，可以放个图标或者留空 -->
-          </div>
-
-          <!-- 底部中间：主操作按钮 -->
-          <div class="footer-center">
-            <!-- 状态 0: 立即支付 -->
-            <el-button v-if="order.status === 0" type="primary" size="medium" class="main-action-btn"
-              @click="handlePay(order)">立即支付</el-button>
-
-            <!-- 状态 1: 首次上传材料 -->
-            <el-button v-if="order.status === 1" type="success" size="medium" class="main-action-btn"
-              icon="el-icon-upload2" @click="handleUpload(order)">上传材料</el-button>
-
-            <!-- 状态 3: 需补交材料 (补上这个按钮！) -->
-            <el-button v-if="order.status === 3" type="warning" size="medium" class="main-action-btn"
-              icon="el-icon-edit" @click="handleUpload(order)">修改并重传</el-button>
-
-            <!-- 状态 8：面试完录入面试结果-->
-            <el-button v-if="order.status === 8" type="success" size="medium" class="main-action-btn"
-              icon="el-icon-circle-check" @click="handleInterviewFinish(order)">我已面试完</el-button>
-
-            <!-- ★★★ 状态 5：确认收货 ★★★ -->
-            <el-button v-if="order.status === 5" type="primary" size="medium" class="main-action-btn"
-              icon="el-icon-check" @click="handleConfirmReceipt(order)">确认收到护照</el-button>
-
-            <!-- 状态 6：已完成 -->
-            <span v-if="order.status === 6" class="finished-text">
-              服务已圆满完成 <i class="el-icon-finished"></i>
-            </span>
-            <!-- 其他进行中的提示文字 -->
-            <span v-if="[2, 4, 7].includes(order.status)" class="waiting-text">
-              <i class="el-icon-loading"></i> {{ statusMap[order.status] }}中...
-            </span>
-          </div>
-
-          <!-- 底部右侧：次要操作 -->
-          <div class="footer-right">
-            <el-button type="text" icon="el-icon-right" @click="goDetail(order.id)">查看进度</el-button>
-          </div>
-        </div>
-
       </apple-card>
+
     </div>
 
     <!-- 空状态 -->
@@ -186,6 +87,119 @@
         <el-button type="primary" round @click="$router.push('/products')">去签证大厅看看</el-button>
       </apple-card>
     </div>
+
+    <!-- ★★★ 核心重构：侧边沉浸式详情抽屉 ★★★ -->
+    <el-drawer
+      title="订单办理详情"
+      :visible.sync="detailDrawerOpen"
+      direction="rtl"
+      size="450px"
+      custom-class="apple-drawer"
+      :append-to-body="true"
+    >
+      <div class="drawer-content" v-if="selectedOrder.id">
+        <!-- 1. 顶部状态横条 -->
+        <div class="drawer-header-status" :class="'bg-status-' + selectedOrder.status">
+          <div class="status-main">{{ statusMap[selectedOrder.status] }}</div>
+          <div class="status-desc">单号：{{ selectedOrder.orderNo }}</div>
+        </div>
+
+        <div class="drawer-body-scroll">
+          <!-- 2. 产品信息概览卡 -->
+          <div class="inner-card product-summary">
+            <img :src="$getImgUrl(parseSnapshot(selectedOrder.productSnapshot).image)" class="summary-img">
+            <div class="summary-text">
+              <h4>{{ parseSnapshot(selectedOrder.productSnapshot).title }}</h4>
+              <p>办理人数：{{ selectedOrder.quantity }}人 | 总额：￥{{ selectedOrder.totalAmount }}</p>
+            </div>
+          </div>
+
+          <!-- 3. 驳回原因提醒 (仅状态3显示) -->
+          <div v-if="selectedOrder.status === 3" class="inner-card error-card">
+            <div class="card-label"><i class="el-icon-warning"></i> 审核未通过</div>
+            <p class="error-msg">您的申请材料被退回，请查阅下方各申请人的修改建议并重新上传。</p>
+          </div>
+
+          <!-- 4. 办理进度明细区 (状态4及以上显示) -->
+          <div v-if="selectedOrder.status >= 4 && selectedOrder.visaResult" class="inner-card result-card">
+            <div class="card-label">签证办理结果</div>
+            <div v-for="(res, idx) in parseJson(selectedOrder.visaResult)" :key="idx" class="drawer-res-item">
+              <span class="p-name">申请人 {{ idx + 1 }}: </span>
+              <el-tag :type="getResultTagType(res.status)" size="mini" round>{{ getResultText(res.status) }}</el-tag>
+              <div class="p-memo" v-if="res.memo">{{ res.memo }}</div>
+            </div>
+
+            <!-- 物流信息 -->
+            <div class="drawer-shipping" v-if="selectedOrder.trackingNumber">
+              <i class="el-icon-truck"></i> 物流单号：{{ selectedOrder.trackingNumber }}
+            </div>
+          </div>
+
+          <!-- 5. 面试预约决策区 (状态7显示) -->
+          <div v-if="selectedOrder.status === 7 && selectedOrder.interviewSlots && !selectedOrder.interviewTime" class="inner-card slot-card">
+            <div class="card-label">选择面试时间</div>
+            <div class="drawer-slots">
+              <div
+                v-for="time in parseJson(selectedOrder.interviewSlots)"
+                :key="time"
+                class="drawer-time-capsule"
+                @click="handleConfirmTime(selectedOrder, time)"
+              >
+                {{ time }}
+              </div>
+            </div>
+          </div>
+
+          <!-- 6. 面试正式通知区 (状态8显示) -->
+          <div v-if="selectedOrder.status === 8" class="inner-card interview-info-card">
+            <div class="card-label">面试通知</div>
+            <p><strong>时间：</strong>{{ selectedOrder.interviewTime }}</p>
+            <p><strong>地点：</strong>{{ selectedOrder.interviewLocation || '请见预约单' }}</p>
+            <el-button
+              v-if="selectedOrder.interviewFile"
+              type="primary" size="mini" plain icon="el-icon-download"
+              @click="downloadTemplate(selectedOrder.interviewFile)"
+            >下载预约单</el-button>
+          </div>
+
+          <!-- 7. 评价与追评展示区 -->
+          <div v-if="selectedOrder.isCommented == 1" class="inner-card comment-card">
+            <div class="card-label">我的评价</div>
+            <el-rate v-model="selectedOrder.commentRate" disabled size="mini"></el-rate>
+            <p class="comment-text">“{{ selectedOrder.commentText }}”</p>
+            <div v-if="selectedOrder.additionalContent" class="drawer-add-comment">
+              <span class="label">追评：</span>{{ selectedOrder.additionalContent }}
+            </div>
+          </div>
+
+        </div>
+
+        <!-- 8. 底部吸底主动作按钮 -->
+        <div class="drawer-footer">
+          <!-- 状态 0: 去支付 -->
+          <el-button v-if="selectedOrder.status === 0" type="primary" class="drawer-main-btn" @click="handlePay(selectedOrder)">立即支付</el-button>
+
+          <!-- 状态 1/3: 去传资料 -->
+          <el-button v-if="[1, 3].includes(selectedOrder.status)" type="primary" class="drawer-main-btn" @click="handleUpload(selectedOrder)">
+            {{ selectedOrder.status === 1 ? '上传申请材料' : '修改申请材料' }}
+          </el-button>
+
+          <!-- 状态 8: 反馈面试结果 -->
+          <el-button v-if="selectedOrder.status === 8" type="success" class="drawer-main-btn" @click="handleInterviewFinish(selectedOrder)">我已面试完</el-button>
+
+          <!-- 状态 5: 确认收货 -->
+          <el-button v-if="selectedOrder.status === 5" type="primary" class="drawer-main-btn" @click="handleConfirmReceipt(selectedOrder)">确认收到护照</el-button>
+
+          <!-- 状态 6: 评价/追评 -->
+          <el-button v-if="selectedOrder.status === 6 && selectedOrder.isCommented != 1" type="primary" class="drawer-main-btn" @click="handleOpenComment(selectedOrder)">评价服务</el-button>
+          <el-button v-if="selectedOrder.status === 6 && selectedOrder.isCommented == 1 && !selectedOrder.additionalContent" type="primary" plain class="drawer-main-btn" @click="handleOpenFollowUp(selectedOrder)">追加评价</el-button>
+
+          <div class="contact-support" @click="handleOpenChat(selectedOrder)">
+            <i class="el-icon-chat-dot-round"></i> 联系签证顾问
+          </div>
+        </div>
+      </div>
+    </el-drawer>
 
     <!-- 面试结果反馈弹窗 -->
     <el-dialog title="面试结果快速反馈" :visible.sync="feedbackOpen" width="500px" append-to-body custom-class="apple-dialog">
@@ -241,6 +255,42 @@
         <el-button type="primary" @click="submitSupplementary" round :loading="loading">确认提交</el-button>
       </div>
     </el-dialog>
+
+    <!-- 评价弹窗 -->
+    <el-dialog title="评价您的签证服务" :visible.sync="commentOpen" width="450px" append-to-body custom-class="apple-dialog">
+      <div style="text-align:center; padding: 10px 0;">
+        <p style="margin-bottom: 15px; color: #606266;">您对本次服务的满意度</p>
+        <!-- ★ 修正：从 0 开始，不默认给五星 -->
+        <el-rate v-model="commentForm.rating" :texts="['极差', '一般', '不错', '很棒', '完美']" show-text></el-rate>
+      </div>
+
+      <el-input type="textarea" v-model="commentForm.content" placeholder="写下您的办签心得..." :rows="3"
+        style="margin-top:20px" />
+
+      <!-- 晒图上传区域 -->
+      <div class="comment-upload-title">上传办签照片/签证页 (最多3张)</div>
+      <el-upload action="/api/common/upload" :headers="headers" list-type="picture-card" :limit="3"
+        :on-success="handleCommentImageSuccess" :on-remove="handleCommentImageRemove" :file-list="commentFileList">
+        <i class="el-icon-camera"></i>
+      </el-upload>
+
+      <div slot="footer" class="dialog-footer">
+        <el-button @click="commentOpen = false" round>取 消</el-button>
+        <el-button type="primary" @click="submitMyComment" round :loading="loading">发布评价</el-button>
+      </div>
+    </el-dialog>
+
+   <!-- 追加评价弹窗 -->
+    <el-dialog title="追加评价" :visible.sync="followUpOpen" width="450px" append-to-body custom-class="apple-dialog">
+      <p style="color: #909399; font-size: 13px; margin-bottom: 15px;">
+        您可以补充更多关于办签细节的感受...
+      </p>
+      <el-input type="textarea" v-model="followUpForm.content" placeholder="请输入您的追评内容..." :rows="4" />
+      <div slot="footer">
+        <el-button @click="followUpOpen = false" round>取消</el-button>
+        <el-button type="primary" @click="submitFollowUp" round :loading="loading">提交追评</el-button>
+      </div>
+    </el-dialog>
   </div>
 
 </template>
@@ -248,6 +298,7 @@
 <script>
 import AppleCard from '@/components/AppleCard'
 import { listMyOrders } from '@/api/order'
+import { addComment, addAdditionalComment } from '@/api/comment'
 import request from '@/utils/request'
 
 export default {
@@ -255,9 +306,16 @@ export default {
   components: { AppleCard },
   data () {
     return {
+      // --- 核心列表数据 ---
       loading: false,
       orderList: [],
+
+      // --- 抽屉与详情控制 ---
+      detailDrawerOpen: false, // 控制侧边详情抽屉
+      selectedOrder: {}, // 当前抽屉中展示的订单（深度克隆）
+
       currentOrder: {},
+      // --- 状态映射字典 ---
       // 状态字典
       statusMap: {
         0: '待支付',
@@ -270,28 +328,110 @@ export default {
         7: '材料过审，待预约面试',
         8: '待面试'
       },
+
+      // --- 面试与反馈相关 ---
       feedbackOpen: false,
       feedbackList: [], // 存储多人的结果
       slipUrl: '', // 存凭证图
+
+      // --- 补充材料(Check)相关 ---
       tempFileList: [], // 临时存储本次上传的文件
       suppOpen: false, // 控制补件弹窗
       targetPersonIdx: 0, // 正在为第几个人补件
+
+      // --- 评价相关 ---
+      commentOpen: false, // 控制评价弹窗
+      commentFileList: [], // 用于存储 el-upload 展示的文件列表
+      commentForm: {
+        rating: 5,
+        content: '',
+        images: '',
+        orderId: null,
+        productId: null,
+        customerId: null
+      },
+      followUpOpen: false, // 控制追评弹窗
+      followUpForm: {
+        id: null, // 评价记录的ID
+        content: ''
+      },
+
+      // --- 筛选与搜索 ---
+      activeTab: 'all',
+      searchKey: '',
+      tabOptions: [
+        { label: '全部', key: 'all' },
+        { label: '待付款', key: 'unpaid' },
+        { label: '待办材料', key: 'action' },
+        { label: '办理中', key: 'processing' },
+        { label: '待收货', key: 'shipping' },
+        { label: '待评价', key: 'review' }
+      ],
+
+      // --- 基础配置 ---
       headers: { Authorization: 'Bearer ' + localStorage.getItem('Client-Token') }
+
     }
   },
   created () {
     this.getList()
+    // 全局事件监听
+    this.$bus.$on('order-updated', () => {
+      this.getList()
+    })
+  },
+  beforeDestroy () {
+    this.$bus.$off('order-updated')
+  },
+  computed: {
+    /** 多重过滤（分类 + 搜索） */
+    filteredOrders () {
+      return this.orderList.filter(order => {
+        // A. 分类过滤
+        let tabMatch = true
+        const s = order.status
+        const isComm = order.isCommented
+        if (this.activeTab === 'unpaid') tabMatch = s === 0
+        else if (this.activeTab === 'action') tabMatch = [1, 3].includes(s)
+        else if (this.activeTab === 'processing') tabMatch = [2, 4, 7, 8].includes(s)
+        else if (this.activeTab === 'shipping') tabMatch = s === 5
+        else if (this.activeTab === 'review') {
+          tabMatch = (s === 6 && isComm !== '1')
+        }
+
+        // B. 搜索过滤
+        const snapshot = this.parseSnapshot(order.productSnapshot)
+        const searchMatch = order.orderNo.includes(this.searchKey) ||
+                            snapshot.title.toLowerCase().includes(this.searchKey.toLowerCase())
+
+        return tabMatch && searchMatch
+      })
+    }
   },
   methods: {
-    // 获取列表
+    /** 获取列表数据 */
     getList () {
       this.loading = true
-      const user = JSON.parse(localStorage.getItem('Client-User'))
+      const userStr = localStorage.getItem('Client-User')
+      if (!userStr) return
+      const user = JSON.parse(userStr)
+
       listMyOrders(user.id).then(res => {
-        this.orderList = res.data
+        this.orderList = res.data || []
+        // 如果当前抽屉开着，同步更新抽屉里的数据
+        if (this.detailDrawerOpen && this.selectedOrder.id) {
+          const latest = this.orderList.find(o => o.id === this.selectedOrder.id)
+          if (latest) this.selectedOrder = JSON.parse(JSON.stringify(latest))
+        }
       }).finally(() => {
         this.loading = false
       })
+    },
+    /** 核心：开启详情抽屉 */
+    openDetailDrawer (order) {
+      // 深度克隆，防止抽屉内操作直接修改主列表视图
+      this.selectedOrder = JSON.parse(JSON.stringify(order))
+      this.detailDrawerOpen = true
     },
 
     // 解析快照 JSON
@@ -304,7 +444,7 @@ export default {
       }
     },
 
-    // ★★★ 核心：唤起支付宝支付 ★★★
+    // 唤起支付宝支付
     // UserOrder.vue -> methods
     handlePay (order) {
       const loading = this.$loading({
@@ -494,21 +634,7 @@ export default {
       })
     },
 
-    /** ★★★ 新增：点击上传补充材料按钮 ★★★ */
-    // handleUploadSupplementary (order, personIndex) {
-    //   // 这个功能是为了应对 Check 情况，引导用户去专门的补件页面或弹窗
-    //   // 建议：跳转到我们之前做的 Upload.vue，并在路径里带上标记
-    //   this.$router.push({
-    //     path: '/order/upload',
-    //     query: {
-    //       orderId: order.id,
-    //       isSupplementary: true, // 告诉上传页：这是补件，不是初审
-    //       personIndex: personIndex // 告诉上传页：是给第几个人补件
-    //     }
-    //   })
-    // },
-
-    /** ★★★ 新增：打开留言板 ★★★ */
+    /** 打开留言板 */
     handleOpenChat (order) {
       // 跳转到 AI 助手或者留言页 (根据你之前的逻辑)
       this.$router.push(`/ai-chat?orderId=${order.id}`)
@@ -629,7 +755,7 @@ export default {
       if (status === 3) return '审查中(Check)'
       return '已拒签'
     },
-    /** ★★★ 新增：处理补件列表中的点击预览 ★★★ */
+    /** 处理补件列表中的点击预览 */
     handleSuppPreview (file) {
       // 1. 获取文件路径
       // 如果是新上传的，路径在 file.response.fileName
@@ -643,7 +769,115 @@ export default {
 
       // 2. 调用之前写好的 downloadTemplate 方法
       this.downloadTemplate(path, '预览补交材料')
+    },
+
+    /** 评价图片上传成功 */
+    handleCommentImageSuccess (res, file, fileList) {
+      if (res.code === 200) {
+        this.commentFileList = fileList
+        this.$message.success('图片上传成功')
+      }
+    },
+
+    /** 评价图片移除 */
+    handleCommentImageRemove (file, fileList) {
+      this.commentFileList = fileList
+    },
+
+    /** 打开评价弹窗方法 */
+    handleOpenComment (order) {
+      this.currentOrder = order
+      this.commentFileList = [] // 重置图片列表
+      this.commentForm = {
+        rating: 0, // 初始 0 星
+        content: '',
+        images: '',
+        orderId: order.id,
+        productId: order.productId,
+        customerId: JSON.parse(localStorage.getItem('Client-User')).id
+      }
+      this.commentOpen = true
+    },
+
+    /** 提交方法 */
+    submitMyComment () {
+      if (this.commentForm.rating === 0) {
+        return this.$message.warning('请给本次服务打个分吧')
+      }
+      if (!this.commentForm.content.trim()) {
+        return this.$message.warning('请写一点评价内容')
+      }
+
+      this.loading = true
+      addComment(this.commentForm).then(res => {
+        this.$message.success('评价发布成功！')
+        this.commentOpen = false
+
+        // 重新拉取订单列表
+        // 这样 orderList 里的 isCommented 就会变成最新的 '1'，角标自然就减 1 了
+        this.getList()
+
+        // \通知 Navbar 刷新待办总数
+        // 既然评价完了，这单就不算“待办”了，导航栏数字也要减 1
+        this.$bus.$emit('order-updated')
+      }).finally(() => {
+        this.loading = false
+      })
+    },
+
+    handleTabChange (key) {
+      this.activeTab = key
+    },
+    handleSearch () {
+      // computed 会自动响应 searchKey 的变化
+    },
+    /** 获取每个 Tab 的订单数量 */
+    getTabCount (key) {
+      if (key === 'all') return 0 // 全部通常不显示数字
+      return this.orderList.filter(order => {
+        const s = order.status
+        const isComm = order.isCommented
+
+        if (key === 'unpaid') return s === 0
+        if (key === 'action') return [1, 3].includes(s)
+        if (key === 'shipping') return s === 5
+        if (key === 'review') return (s === 6 && isComm !== '1')
+        return false
+      }).length
+    },
+    /** 打开追评弹窗 */
+    handleOpenFollowUp (order) {
+      this.followUpForm = {
+        // 使用联表查出来的 commentId
+        id: order.commentId,
+        content: ''
+      }
+      this.followUpOpen = true
+    },
+
+    /** 提交追评 */
+    submitFollowUp () {
+      if (!this.followUpForm.content.trim()) {
+        return this.$message.warning('请输入追评内容')
+      }
+      this.loading = true
+
+      const data = {
+        id: this.followUpForm.id, // 这个 ID 就是订单里带的 commentId
+        additionalContent: this.followUpForm.content
+      }
+
+      addAdditionalComment(data).then(res => {
+        this.$message.success('追加评价成功')
+        this.followUpOpen = false
+
+        // 重新获取列表，让新内容显示在气泡里
+        this.getList()
+      }).finally(() => {
+        this.loading = false
+      })
     }
+
   }
 }
 </script>
@@ -657,6 +891,9 @@ export default {
 
 .page-header {
   margin-bottom: 30px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 
   h2 {
     font-weight: 700;
@@ -1153,4 +1390,239 @@ export default {
   }
 }
 
+.comment-upload-title {
+  font-size: 13px;
+  color: #909399;
+  margin: 20px 0 10px;
+  text-align: left;
+}
+
+/* 让上传框小一点，符合 Apple 的精致感 */
+::v-deep .el-upload--picture-card {
+  width: 80px;
+  height: 80px;
+  line-height: 90px;
+  border-radius: 12px;
+  background-color: #F5F7FA;
+  border: 1px dashed #DCDFE6;
+}
+
+::v-deep .el-upload-list--picture-card .el-upload-list__item {
+  width: 80px;
+  height: 80px;
+  border-radius: 12px;
+}
+
+/* 搜索框样式 */
+.search-wrapper {
+  position: relative;
+  width: 280px;
+  input {
+    width: 100%;
+    height: 40px;
+    background: #fff;
+    border: 1px solid #EBF5FF;
+    border-radius: 12px;
+    padding: 0 40px 0 15px;
+    font-size: 14px;
+    transition: all 0.3s;
+    &:focus {
+      outline: none;
+      border-color: $primary-color;
+      box-shadow: 0 0 0 4px rgba(106, 175, 230, 0.1);
+    }
+  }
+  i {
+    position: absolute;
+    right: 15px;
+    top: 12px;
+    color: #999;
+  }
+}
+
+/* Tab 切换样式 */
+.order-tabs {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 30px;
+  background: rgba(255,255,255,0.5);
+  padding: 8px;
+  border-radius: 16px;
+
+  .tab-item {
+    padding: 10px 20px;
+    border-radius: 12px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    color: #86868b;
+    transition: all 0.3s;
+    position: relative;
+
+    &:hover { color: $primary-color; }
+
+    &.active {
+      background: #fff;
+      color: $primary-color;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    }
+
+    .tab-count {
+      position: absolute;
+      top: -2px;
+      right: 2px;
+      background: #FF6B6B;
+      color: #fff;
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 10px;
+      transform: scale(0.8) translate(50%, -50%);
+    }
+  }
+}
+
+.finished-section {
+  margin-top: 15px;
+}
+
+.comment-bubble {
+  background-color: #F7F9FC;
+  border: 1px solid #EDF2F7;
+  border-radius: 16px;
+  padding: 15px;
+  margin-top: 10px;
+
+  .bubble-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    .bubble-tag { font-size: 11px; color: $primary-color; font-weight: 700; }
+  }
+
+  .comment-text {
+    font-size: 14px;
+    color: #4A5568;
+    line-height: 1.5;
+    font-style: italic;
+    margin: 0;
+  }
+
+  .admin-reply-box {
+    margin-top: 10px;
+    padding: 10px;
+    background: #fff;
+    border-radius: 8px;
+    font-size: 13px;
+    color: #718096;
+    .reply-label { font-weight: 700; color: $primary-color; }
+  }
+
+  .additional-box {
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px dashed #CBD5E0;
+    .add-header { font-size: 12px; color: #A0AEC0; margin-bottom: 4px; }
+    .add-content { font-size: 14px; color: #2D3748; font-weight: 600; margin: 0; }
+  }
+
+  .bubble-footer {
+    text-align: right;
+    margin-top: 5px;
+    .el-button--text { padding: 0; color: $primary-color; font-size: 12px; }
+  }
+}
+
+/* 1. 主列表卡片精简样式 */
+.compact-order-card {
+  padding: 15px 20px !important;
+  cursor: pointer;
+  .card-inner { display: flex; align-items: center; }
+  .img-side { margin-right: 15px; .mini-cover { width: 60px; height: 45px; border-radius: 8px; object-fit: cover; } }
+  .info-side {
+    flex: 1;
+    .order-no-row { font-size: 11px; color: #bbb; margin-bottom: 4px; }
+    .product-title { font-size: 15px; font-weight: 700; color: $text-main; margin-bottom: 5px; }
+    .data-row { font-size: 12px; color: #86868b; .price { color: #ff6b6b; font-weight: bold; } .divider { margin: 0 8px; } }
+  }
+  .status-side {
+    text-align: right; display: flex; align-items: center; gap: 10px;
+    .status-text { font-size: 13px; font-weight: 600; }
+    .arrow-icon { color: #DCDFE6; font-size: 18px; }
+  }
+}
+
+/* 2. 抽屉样式重写 */
+::v-deep .apple-drawer {
+  background-color: #F5F5F7 !important; /* Apple背景色 */
+  border-radius: 30px 0 0 30px; /* 左侧大圆角 */
+  outline: none;
+  .el-drawer__header { margin-bottom: 0; padding: 20px; font-weight: 700; }
+}
+
+.drawer-content {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.drawer-header-status {
+  padding: 30px 20px;
+  color: #fff;
+  &.bg-status-0 { background: linear-gradient(135deg, #FF9500, #FFCC00); }
+  &.bg-status-1, &.bg-status-3 { background: linear-gradient(135deg, #007AFF, #5AC8FA); }
+  &.bg-status-6 { background: linear-gradient(135deg, #34C759, #32D74B); }
+  .status-main { font-size: 24px; font-weight: 800; margin-bottom: 5px; }
+  .status-desc { font-size: 13px; opacity: 0.8; }
+}
+
+.drawer-body-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+}
+
+.inner-card {
+  background: #fff;
+  border-radius: 20px;
+  padding: 20px;
+  margin-bottom: 15px;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.02);
+  .card-label { font-size: 13px; font-weight: 700; color: #86868b; margin-bottom: 15px; text-transform: uppercase; }
+}
+
+.product-summary {
+  display: flex; align-items: center; gap: 15px;
+  .summary-img { width: 80px; height: 60px; border-radius: 10px; object-fit: cover; }
+  h4 { font-size: 16px; margin-bottom: 5px; color: $text-main; }
+  p { font-size: 12px; color: #999; }
+}
+
+/* 抽屉内时间胶囊 */
+.drawer-slots {
+  display: flex; flex-direction: column; gap: 10px;
+  .drawer-time-capsule {
+    background: #F7F9FC; border-radius: 12px; padding: 12px; text-align: center;
+    font-weight: 600; cursor: pointer; transition: all 0.3s;
+    &:hover { background: #EBF5FF; color: $primary-color; }
+  }
+}
+
+/* 抽屉底部吸底 */
+.drawer-footer {
+  padding: 20px;
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(20px);
+  border-top: 1px solid #eee;
+  text-align: center;
+
+  .drawer-main-btn {
+    width: 100%; height: 50px; border-radius: 15px !important; font-size: 16px; font-weight: 700;
+  }
+
+  .contact-support {
+    margin-top: 15px; font-size: 13px; color: $primary-color; cursor: pointer;
+    &:hover { text-decoration: underline; }
+  }
+}
 </style>

@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.visa.mapper.VisaCommentMapper">
+    
+    <resultMap type="VisaComment" id="VisaCommentResult">
+        <result property="id"    column="id"    />
+        <result property="orderId"    column="order_id"    />
+        <result property="productId"    column="product_id"    />
+        <result property="customerId"    column="customer_id"    />
+        <result property="rating"    column="rating"    />
+        <result property="content"    column="content"    />
+        <result property="images"    column="images"    />
+        <result property="adminReply"    column="admin_reply"    />
+        <result property="replyTime"    column="reply_time"    />
+        <result property="createTime"    column="create_time"    />
+        <result property="customerNickname" column="customer_nickname" />
+        <result property="customerAvatar" column="customer_avatar" />
+        <result property="additionalContent" column="additional_content`" />
+        <result property="additionalTime" column="additional_time" />
+    </resultMap>
+
+    <sql id="selectVisaCommentVo">
+        select
+            vc.*,
+            cus.nickname as customer_nickname,
+            cus.avatar as customer_avatar
+        from visa_comment vc
+                 left join c_customer cus on vc.customer_id = cus.id
+    </sql>
+
+    <select id="selectVisaCommentList" parameterType="VisaComment" resultMap="VisaCommentResult">
+        <include refid="selectVisaCommentVo"/>
+        <where>  
+            <if test="orderId != null "> and order_id = #{orderId}</if>
+            <if test="productId != null "> and product_id = #{productId}</if>
+            <if test="customerId != null "> and customer_id = #{customerId}</if>
+            <if test="rating != null "> and rating = #{rating}</if>
+            <if test="content != null  and content != ''"> and content = #{content}</if>
+            <if test="images != null  and images != ''"> and images = #{images}</if>
+            <if test="adminReply != null  and adminReply != ''"> and admin_reply = #{adminReply}</if>
+            <if test="replyTime != null "> and reply_time = #{replyTime}</if>
+            <if test="additionalContent != null  and additionalContent != ''"> and additional_content = #{additionalContent}</if>
+            <if test="additionalTime != null "> and additional_time = #{additionalTime}</if>
+        </where>
+    </select>
+    
+    <select id="selectVisaCommentById" parameterType="Long" resultMap="VisaCommentResult">
+        <include refid="selectVisaCommentVo"/>
+        where id = #{id}
+    </select>
+
+    <insert id="insertVisaComment" parameterType="VisaComment" useGeneratedKeys="true" keyProperty="id">
+        insert into visa_comment
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="orderId != null">order_id,</if>
+            <if test="productId != null">product_id,</if>
+            <if test="customerId != null">customer_id,</if>
+            <if test="rating != null">rating,</if>
+            <if test="content != null and content != ''">content,</if>
+            <if test="images != null">images,</if>
+            <if test="adminReply != null">admin_reply,</if>
+            <if test="replyTime != null">reply_time,</if>
+            <if test="createTime != null">create_time,</if>
+            <if test="additionalTime != null">additional_time</if>
+            <if test="additionalContent != null">additional_content</if>
+         </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="orderId != null">#{orderId},</if>
+            <if test="productId != null">#{productId},</if>
+            <if test="customerId != null">#{customerId},</if>
+            <if test="rating != null">#{rating},</if>
+            <if test="content != null and content != ''">#{content},</if>
+            <if test="images != null">#{images},</if>
+            <if test="adminReply != null">#{adminReply},</if>
+            <if test="replyTime != null">#{replyTime},</if>
+            <if test="createTime != null">#{createTime},</if>
+            <if test="additionalTime != null">#{additionalTime},</if>
+            <if test="additionalContent != null">#{additionalContent},</if>
+         </trim>
+    </insert>
+
+    <update id="updateVisaComment" parameterType="VisaComment">
+        update visa_comment
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="orderId != null">order_id = #{orderId},</if>
+            <if test="productId != null">product_id = #{productId},</if>
+            <if test="customerId != null">customer_id = #{customerId},</if>
+            <if test="rating != null">rating = #{rating},</if>
+            <if test="content != null and content != ''">content = #{content},</if>
+            <if test="images != null">images = #{images},</if>
+            <if test="adminReply != null">admin_reply = #{adminReply},</if>
+            <if test="replyTime != null">reply_time = #{replyTime},</if>
+            <if test="createTime != null">create_time = #{createTime},</if>
+            <if test="additionalTime != null">additional_time = #{additionalTime},</if>
+            <if test="additionalContent != null">additional_content = #{additionalContent},</if>
+        </trim>
+        where id = #{id}
+    </update>
+
+    <delete id="deleteVisaCommentById" parameterType="Long">
+        delete from visa_comment where id = #{id}
+    </delete>
+
+    <delete id="deleteVisaCommentByIds" parameterType="String">
+        delete from visa_comment where id in 
+        <foreach item="id" collection="array" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+</mapper>
