@@ -17,9 +17,9 @@
 </template>
 
 <script>
-// 引入组件 (下面会让你确认这两个文件还在不在)
-import Navbar from './components/Navbar'
-import AppFooter from './components/Footer'
+/* eslint-disable */
+import AppFooter from './components/Footer';
+import Navbar from './components/Navbar';
 
 export default {
   name: 'Layout',
@@ -31,6 +31,7 @@ export default {
 </script>
 
 <style scoped lang="scss">
+
 @import "@/assets/styles/variables.scss";
 
 .app-wrapper {
@@ -41,10 +42,10 @@ export default {
 }
 
 .main-container {
-  flex: 1; /* 让内容撑满剩余空间，把 footer 挤到底部 */
+  flex: 1;
   width: 100%;
-  padding-top: 80px; /* ★重要：因为 Navbar 是 fixed 定位的，这里要留出高度，否则内容会被挡住 */
-  padding-bottom: 40px;
+  padding-top: 0; /* ★ 核心修改：去掉 padding-top，让首屏直接顶到最上面 */
+  padding-bottom: 0;
 }
 
 /* 页面切换动画 */

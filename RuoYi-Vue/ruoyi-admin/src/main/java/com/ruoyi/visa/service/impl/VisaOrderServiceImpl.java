@@ -98,4 +98,10 @@ public class VisaOrderServiceImpl implements IVisaOrderService
     public VisaOrder selectVisaOrderByOrderNo(String orderNo) {
         return visaOrderMapper.selectVisaOrderByOrderNo(orderNo);
     }
+
+    @Override
+    public List<VisaOrder> selectChatUserList()
+    {
+        return visaOrderMapper.selectChatUserList();
+    }
 }

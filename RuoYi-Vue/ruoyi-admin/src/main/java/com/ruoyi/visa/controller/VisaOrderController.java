@@ -2,16 +2,12 @@ package com.ruoyi.visa.controller;
 
 import java.util.List;
 import javax.servlet.http.HttpServletResponse;
+
+import com.ruoyi.visa.domain.OrderMessage;
+import com.ruoyi.visa.service.IOrderMessageService;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import com.ruoyi.common.annotation.Log;
 import com.ruoyi.common.core.controller.BaseController;
 import com.ruoyi.common.core.domain.AjaxResult;
@@ -33,6 +29,9 @@ public class VisaOrderController extends BaseController
 {
     @Autowired
     private IVisaOrderService visaOrderService;
+
+    @Autowired
+    private IOrderMessageService orderMessageService;
 
     /**
      * 查询签证订单列表
@@ -100,5 +99,41 @@ public class VisaOrderController extends BaseController
     public AjaxResult remove(@PathVariable Long[] ids)
     {
         return toAjax(visaOrderService.deleteVisaOrderByIds(ids));
+    }
+
+
+    /**
+     * 获取聊天历史 (管理员专用版)
+     */
+    @GetMapping("/chat/history")
+    public AjaxResult getChatHistory(
+            @RequestParam(value = "orderId", required = false) Long orderId,
+            @RequestParam(value = "customerId", required = false) Long customerId
+    ) {
+        OrderMessage query = new OrderMessage();
+        query.setOrderId(orderId == null ? 0L : orderId);
+        query.setCustomerId(customerId == null ? 0L : customerId);
+
+        // ★★★ 核心修复：强制只查询非 AI 的消息 (人工对话) ★★★
+        query.setIsAi("0");
+
+        List<OrderMessage> list = orderMessageService.selectOrderMessageList(query);
+
+        // 排序确保对话流畅
+        list.sort(java.util.Comparator.comparing(OrderMessage::getCreateTime));
+
+        return success(list);
+    }
+
+    /**
+     * 获取在线客服的咨询用户列表 (管理员调用)
+     */
+    @PreAuthorize("@ss.hasPermi('visa:order:list')")
+    @GetMapping("/chat/users")
+    public TableDataInfo getChatUsers() {
+        startPage();
+        // 使用我们之前重构的那个 GROUP BY customer_id, order_id 的 SQL
+        List<VisaOrder> list = visaOrderService.selectChatUserList();
+        return getDataTable(list);
     }
 }

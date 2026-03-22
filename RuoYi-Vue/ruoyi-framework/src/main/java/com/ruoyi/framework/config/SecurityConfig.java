@@ -120,6 +120,8 @@ public class SecurityConfig
                     // 2. 允许文件上传接口匿名访问 (解决头像上传 401 问题)
                     .antMatchers("/common/upload").permitAll()
                     .antMatchers("/profile/**").permitAll()
+                    .antMatchers("/websocket/**").permitAll()
+
                     // 除上面外的所有请求全部需要鉴权认证
                     .anyRequest().authenticated();
 

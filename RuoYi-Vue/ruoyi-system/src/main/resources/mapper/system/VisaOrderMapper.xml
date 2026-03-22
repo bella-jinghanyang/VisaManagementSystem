@@ -37,6 +37,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <result property="adminReply"   column="admin_reply"   />
         <result property="additionalContent" column="additional_content" />
         <result property="additionalTime"    column="additional_time"    />
+        <result property="expressToAgency" column="express_to_agency" />
     </resultMap>
 
     <sql id="selectVisaOrderVo">
@@ -66,6 +67,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             vo.interview_slots,
             vo.supplementary_materials,
             vo.is_commented,
+            vo.express_to_agency,
             vp.is_interview_required,
             vc.id as comment_id,
             vc.rating as comment_rate,
@@ -101,9 +103,10 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="mailingAddress != null  and mailingAddress != ''"> and vo.mailing_address = #{mailingAddress}</if>
             <if test="interviewSlots != null  and interviewSlots != ''"> and vo.interview_slots = #{interviewSlots}</if>
             <if test="supplementaryMaterials != null  and supplementaryMaterials != ''"> and vo.supplementary_materials = #{supplementaryMaterials}</if>
+            <if test="expressToAgency != null  and expressToAgency != ''"> and vo.express_to_agency = #{expressToAgency}</if>
 
             <if test="params.auditType != null and params.auditType == 'processing'">
-                AND (vo.status = 4 OR vo.status = 7 OR vo.status = 8)
+                AND (vo.status = 4 OR vo.status = 7 OR vo.status = 8 OR vo.status = 9)
             </if>
             and vo.del_flag = '0'
         </where>
@@ -144,6 +147,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="delFlag != null">del_flag,</if>
             <if test="interviewSlots != null">interview_slots</if>
             <if test="supplementaryMaterials != null">supplementary_materials</if>
+            <if test="expressToAgency != null">express_to_agency</if>
          </trim>
         <trim prefix="values (" suffix=")" suffixOverrides=",">
             <if test="orderNo != null and orderNo != ''">#{orderNo},</if>
@@ -169,6 +173,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="delFlag != null">#{delFlag},</if>
             <if test="interviewSlots != null">#{interviewSlots},</if>
             <if test="supplementaryMaterials != null">#{supplementaryMaterials},</if>
+            <if test="expressToAgency != null">#{expressToAgency},</if>
          </trim>
     </insert>
 
@@ -199,6 +204,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="interviewSlots != null">interview_slots = #{interviewSlots},</if>
             <if test="supplementaryMaterials != null">supplementary_materials = #{supplementaryMaterials},</if>
             <if test="isCommented != null">is_commented = #{isCommented},</if>
+            <if test="expressToAgency != null">express_to_agency = #{expressToAgency},</if>
         </trim>
         where id = #{id}
     </update>
@@ -213,4 +219,26 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             #{id}
         </foreach>
     </delete>
+
+    <select id="selectChatUserList" resultMap="VisaOrderResult">
+        SELECT
+            om.customer_id,
+            om.order_id as id,
+            /* ★ 使用 MAX 聚合函数确保兼容 only_full_group_by ★ */
+            MAX(vo.order_no) as order_no,
+            MAX(c.nickname) as customer_name,
+            MAX(c.avatar) as customer_avatar,
+            /* 子查询：获取该 客户+订单 组合的最后一条消息 */
+            (SELECT content FROM order_message
+             WHERE order_id = om.order_id AND customer_id = om.customer_id
+             ORDER BY create_time DESC LIMIT 1) as last_msg,
+            MAX(om.create_time) as last_time
+        FROM order_message om
+                 LEFT JOIN visa_order vo ON om.order_id = vo.id
+                 LEFT JOIN c_customer c ON om.customer_id = c.id
+            /* ★ 只统计人工消息 ★ */
+        WHERE om.is_ai = '0'
+        GROUP BY om.customer_id, om.order_id
+        ORDER BY last_time DESC
+    </select>
 </mapper>

@@ -1,5 +1,5 @@
 <template>
-  <div class="glass-nav">
+  <div :class="['glass-nav', { 'is-transparent': isTransparent && isHomePage }]">
     <div class="nav-content">
       <!-- LOGO -->
       <div class="logo">
@@ -57,16 +57,32 @@
 </template>
 
 <script>
-import { getCartCount } from '@/api/cart'
-import { getPendingOrderCount } from '@/api/order'
+/* eslint-disable */
+import { getCartCount } from '@/api/cart';
+import { getPendingOrderCount } from '@/api/order';
 export default {
   data () {
     return {
       cartCount: 0,
       isLogin: false,
       userInfo: {},
-      orderCount: 0 // 待办订单数
+      orderCount: 0,// 待办订单数
+      isTransparent: true, // 是否透明
+      isHomePage: false,   // 是否是首页
     }
+  },
+  watch: {
+    // 监听路由变化，只有首页才需要透明融合效果
+    '$route': {
+      immediate: true,
+      handler(to) {
+        this.isHomePage = to.path === '/';
+        this.handleScroll();
+      }
+    }
+  },
+  mounted() {
+    window.addEventListener('scroll', this.handleScroll);
   },
   created () {
     // 页面一加载，先查一次
@@ -96,6 +112,11 @@ export default {
     this.$bus.$off('login-success')
   },
   methods: {
+     handleScroll() {
+      const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+      // 滚动超过 50px 就取消透明
+      this.isTransparent = scrollTop < 50;
+    },
     checkLogin () {
       const token = localStorage.getItem('Client-Token')
       const userStr = localStorage.getItem('Client-User')
@@ -175,17 +196,27 @@ export default {
 
 .glass-nav {
   position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 70px;
+  top: 0; left: 0; width: 100%; height: 70px;
   z-index: 999;
+  
+  /* 滚动后的奶蓝毛玻璃样式 */
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: saturate(180%) blur(20px);
+  box-shadow: 0 4px 15px rgba(106, 175, 230, 0.1);
+  border-bottom: 1px solid rgba(106, 175, 230, 0.1);
+  transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1); // 平滑过渡
 
-  /* 核心：毛玻璃效果 */
-  background: rgba(255, 255, 255, 0.75); // 75%透明度的白
-  backdrop-filter: saturate(180%) blur(20px); // 高斯模糊
-  box-shadow: 0 2px 20px rgba(0, 0, 0, 0.02); // 极淡的阴影
-  border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+  /* ★★★ 核心：透明融合态样式 ★★★ */
+  &.is-transparent {
+    background: transparent !important;
+    backdrop-filter: blur(0) !important;
+    box-shadow: none !important;
+    border-bottom: none !important;
+    
+    /* 此时可以让文字颜色变成纯白，以便在背景图上更清晰 */
+    .logo, .nav-item { color: #ffffff; }
+    .nav-item::after { background: #ffffff; box-shadow: 0 0 10px #fff; }
+  }
 }
 
 .nav-content {

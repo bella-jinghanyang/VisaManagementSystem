@@ -117,6 +117,26 @@ public class VisaOrder extends BaseEntity
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private Date additionalTime;
 
+    private String isAi;
+
+    public String getIsAi() {
+        return isAi;
+    }
+
+    public void setIsAi(String isAi) {
+        this.isAi = isAi;
+    }
+
+    private String expressToAgency;
+
+    public String getExpressToAgency() {
+        return expressToAgency;
+    }
+
+    public void setExpressToAgency(String expressToAgency) {
+        this.expressToAgency = expressToAgency;
+    }
+
     public void setId(Long id)
     {
         this.id = id;

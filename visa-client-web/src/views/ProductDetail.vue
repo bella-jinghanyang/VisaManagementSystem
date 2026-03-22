@@ -89,42 +89,64 @@
           </div>
         </apple-card>
 
-        <!-- 4. 评分与评论 (App Store 风格) -->
-        <apple-card class="mb-30 reviews-section">
-          <div class="reviews-header">
-            <h3 class="section-title">评分与评论</h3>
-            <div class="summary-box">
-              <div class="score-num">4.8</div>
-              <div class="score-right">
-                <div class="stars-text">满分 5 分</div>
-                <el-rate v-model="avgRate" disabled text-color="#ff9900"></el-rate>
+        <!-- 4. 评分与评论 (重构版：内容靠左 + 真实分布条) -->
+<apple-card class="mb-30 reviews-section">
+  <h3 class="section-title">评分与评论</h3>
+
+  <div class="reviews-container">
+    <!-- 评分概览区 -->
+    <div class="reviews-header">
+      <div class="summary-box">
+        <div class="score-num">{{ calculateStats.average }}</div>
+        <div class="score-right">
+          <div class="stars-text">满分 5 分</div>
+          <el-rate v-model="calculateStats.avgNum" disabled text-color="#ff9900"></el-rate>
+          <div class="total-reviews">{{ reviews.length }} 条评分</div>
+        </div>
+      </div>
+
+            <!-- 评分分布进度条 (模拟 App Store) -->
+              <div class="rating-bars">
+                <div v-for="star in [5, 4, 3, 2, 1]" :key="star" class="bar-item">
+                  <span class="star-label">{{ star }}</span>
+                  <div class="bar-bg">
+                    <div class="bar-fill" :style="{ width: calculateStats.distribution[star] + '%' }"></div>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
 
-          <div class="reviews-list">
-            <!-- 循环渲染评价列表 -->
-            <div v-for="rev in reviews" :key="rev.id" class="review-item">
-              <div class="rev-user">
-                <el-avatar :size="32" :src="$getImgUrl(rev.customerAvatar)"></el-avatar>
-                <span class="username">{{ maskName(rev.customerNickname) }}</span>
-                <span class="rev-date">{{ rev.createTime }}</span>
-              </div>
-              <div class="rev-stars">
-                <el-rate v-model="rev.rating" disabled></el-rate>
-              </div>
-              <p class="rev-content">{{ rev.content }}</p>
+            <!-- 评论列表 (确保靠左) -->
+            <div class="reviews-list">
+              <div v-for="rev in reviews" :key="rev.id" class="review-item">
+                <div class="rev-user">
+                  <el-avatar :size="32" :src="$getImgUrl(rev.customerAvatar)"></el-avatar>
+                  <div class="user-meta">
+                    <span class="username">{{ maskName(rev.customerNickname) }}</span>
+                    <el-rate v-model="rev.rating" disabled class="mini-rate"></el-rate>
+                  </div>
+                  <span class="rev-date">{{ parseTime(rev.createTime, '{y}-{m}-{d}') }}</span>
+                </div>
 
-              <!-- 晒图预览 -->
-              <div class="rev-images" v-if="rev.images">
-                <el-image v-for="(img, i) in parseJson(rev.images)" :key="i" :src="$getImgUrl(img)"
-                  :preview-src-list="[...parseJson(rev.images).map(url => $getImgUrl(url))]" class="rev-img-mini" />
+                <p class="rev-content">{{ rev.content }}</p>
+
+                <!-- 晒图 -->
+                <div class="rev-images" v-if="rev.images">
+                  <el-image v-for="(img, i) in parseJson(rev.images)" :key="i" :src="$getImgUrl(img)"
+                    :preview-src-list="[...parseJson(rev.images).map(url => $getImgUrl(url))]" class="rev-img-mini"
+                    fit="cover" />
+                </div>
+
+                <!-- 官方回复 -->
+                <div class="admin-reply" v-if="rev.adminReply">
+                  <span class="reply-label">官方回复</span>
+                  <p>{{ rev.adminReply }}</p>
+                </div>
               </div>
 
-              <!-- 官方回复 -->
-              <div class="admin-reply" v-if="rev.adminReply">
-                <span class="reply-label">官方回复：</span>
-                <p>{{ rev.adminReply }}</p>
+              <!-- 无评价时的占位 -->
+              <div v-if="reviews.length === 0" class="no-reviews">
+                暂时没有评价，快去办理并分享您的心得吧。
               </div>
             </div>
           </div>
@@ -175,6 +197,7 @@
 import AppleCard from '@/components/AppleCard'
 import { getProduct } from '@/api/product'
 import { addToCart } from '@/api/cart'
+import { getProductComments } from '@/api/comment'
 
 export default {
   name: 'ProductDetail',
@@ -182,11 +205,44 @@ export default {
   data () {
     return {
       product: {},
-      materials: []
+      materials: [],
+      reviews: [] // ★ 评价列表
+
     }
   },
   created () {
     this.initData()
+    this.getComments() // ★ 加载评价
+  },
+  computed: {
+    /** ★★★ 核心逻辑：计算真实评分统计 ★★★ */
+    calculateStats () {
+      const len = this.reviews.length
+      if (len === 0) {
+        return { average: '0.0', avgNum: 0, distribution: { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 } }
+      }
+
+      // 1. 计算平均分
+      const sum = this.reviews.reduce((acc, cur) => acc + cur.rating, 0)
+      const avg = (sum / len).toFixed(1)
+
+      // 2. 计算各星级分布比例
+      const dist = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 }
+      this.reviews.forEach(r => {
+        if (dist[r.rating] !== undefined) dist[r.rating]++
+      })
+
+      // 转换为百分比
+      Object.keys(dist).forEach(key => {
+        dist[key] = (dist[key] / len) * 100
+      })
+
+      return {
+        average: avg,
+        avgNum: parseFloat(avg),
+        distribution: dist
+      }
+    }
   },
   methods: {
     initData () {
@@ -246,7 +302,70 @@ export default {
         path: '/order/create',
         query: { productId: this.product.id }
       })
+    },
+    /** ★ 获取评价数据 ★ */
+    getComments () {
+      const productId = this.$route.params.id
+      getProductComments(productId).then(res => {
+        // 修正点：若依的查询接口如果是生成的，数据通常在 rows 里；如果是自定义 AjaxResult，在 data 里
+        this.reviews = res.data || res.rows || []
+        console.log('评价列表数据：', this.reviews)
+      })
+    },
+
+    /** ★ 辅助：解析图片数组 ★ */
+    parseJson (str) {
+      if (!str) return []
+      try {
+        return typeof str === 'string' ? JSON.parse(str) : str
+      } catch (e) { return [] }
+    },
+
+    /** ★ 辅助：名字打码 ★ */
+    maskName (name) {
+      if (!name) return '匿名用户'
+      if (name.length <= 1) return name + '***'
+      return name.charAt(0) + '***' + name.charAt(name.length - 1)
+    },
+    /** 时间格式化工具 */
+    parseTime (time, pattern) {
+      if (arguments.length === 0 || !time) {
+        return null
+      }
+      const format = pattern || '{y}-{m}-{d} {h}:{i}:{s}'
+      let date
+      if (typeof time === 'object') {
+        date = time
+      } else {
+        if ((typeof time === 'string') && (/^[0-9]+$/.test(time))) {
+          time = parseInt(time)
+        } else if (typeof time === 'string') {
+          time = time.replace(/-/gm, '/')
+        }
+        if ((typeof time === 'number') && (time.toString().length === 10)) {
+          time = time * 1000
+        }
+        date = new Date(time)
+      }
+      const formatObj = {
+        y: date.getFullYear(),
+        m: date.getMonth() + 1,
+        d: date.getDate(),
+        h: date.getHours(),
+        i: date.getMinutes(),
+        s: date.getSeconds(),
+        a: date.getDay()
+      }
+      const timeStr = format.replace(/{(y|m|d|h|i|s|a)+}/g, (result, key) => {
+        let value = formatObj[key]
+        if (result.length > 0 && value < 10) {
+          value = '0' + value
+        }
+        return value || 0
+      })
+      return timeStr
     }
+
   }
 }
 </script>
@@ -433,38 +552,71 @@ export default {
   }
 }
 
-.reviews-section {
-  .reviews-header {
-    display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 40px;
-    .summary-box {
-      display: flex; align-items: center; gap: 15px;
-      .score-num { font-size: 48px; font-weight: 800; color: $text-main; }
-      .stars-text { font-size: 12px; color: #999; margin-bottom: 4px; }
+/* 评价区主容器 */
+.reviews-container {
+  text-align: left !important; /* ★ 强制所有内容靠左对齐 ★ */
+}
+
+.reviews-header {
+  display: flex;
+  align-items: center;
+  gap: 50px;
+  margin-bottom: 40px;
+  padding-bottom: 30px;
+  border-bottom: 1px solid #f0f2f5;
+
+  .summary-box {
+    text-align: center; /* 唯独分数汇总可以居中，很有仪式感 */
+    .score-num { font-size: 64px; font-weight: 800; color: $text-main; line-height: 1; margin-bottom: 10px; }
+    .stars-text { font-size: 12px; color: #999; font-weight: 700; }
+    .total-reviews { font-size: 12px; color: #ccc; margin-top: 5px; }
+  }
+
+  /* 分布进度条样式 */
+  .rating-bars {
+    flex: 1;
+    max-width: 300px;
+    .bar-item {
+      display: flex; align-items: center; gap: 10px; margin-bottom: 4px;
+      .star-label { font-size: 11px; color: #999; width: 10px; font-weight: 700; }
+      .bar-bg { flex: 1; height: 6px; background: #E9E9EB; border-radius: 3px; overflow: hidden; }
+      .bar-fill { height: 100%; background: #6AAFE6; border-radius: 3px; } /* 使用奶蓝色填充 */
     }
   }
 }
 
+/* 列表项靠左 */
+.reviews-list {
+  text-align: left !important;
+}
+
 .review-item {
-  padding: 25px 0; border-bottom: 1px solid #f0f2f5;
-  &:last-child { border-bottom: none; }
+  padding: 30px 0;
+  border-bottom: 1px solid #f5f7fa;
 
   .rev-user {
-    display: flex; align-items: center; gap: 10px; margin-bottom: 12px;
-    .username { font-weight: 600; font-size: 14px; color: $text-main; }
-    .rev-date { color: #ccc; font-size: 12px; margin-left: auto; }
+    display: flex; align-items: center; gap: 12px;
+    .user-meta {
+      display: flex; flex-direction: column;
+      .username { font-size: 14px; font-weight: 700; color: $text-main; }
+      .mini-rate { transform: scale(0.8); transform-origin: left; margin-top: -5px; }
+    }
+    .rev-date { margin-left: auto; color: #ccc; font-size: 12px; }
   }
 
-  .rev-content { font-size: 15px; line-height: 1.6; color: #444; margin: 12px 0; }
-
-  .rev-images {
-    display: flex; gap: 10px; margin-bottom: 15px;
-    .rev-img-mini { width: 80px; height: 80px; border-radius: 8px; cursor: zoom-in; }
+  .rev-content {
+    font-size: 15px; line-height: 1.7; color: #444;
+    margin: 15px 0;
+    text-align: left; /* 确保文字绝对靠左 */
   }
 
   .admin-reply {
-    background: #F7F9FC; padding: 15px; border-radius: 12px; font-size: 14px;
-    .reply-label { font-weight: 700; color: $primary-color; display: block; margin-bottom: 5px; }
-    p { color: #666; margin: 0; }
+    margin-top: 20px; background: #F0F7FF; /* 淡淡的奶蓝色背景 */
+    padding: 15px 20px; border-radius: 16px;
+    .reply-label { font-size: 12px; font-weight: 800; color: #6AAFE6; display: block; margin-bottom: 6px; }
+    p { color: #5a6b7d; font-size: 14px; margin: 0; }
   }
 }
+
+.no-reviews { padding: 40px 0; text-align: center; color: #ccc; font-size: 14px; }
 </style>

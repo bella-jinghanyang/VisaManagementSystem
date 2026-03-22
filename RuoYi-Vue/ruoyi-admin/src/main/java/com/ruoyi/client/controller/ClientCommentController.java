@@ -38,7 +38,7 @@ public class ClientCommentController extends BaseController {
      */
     @PostMapping("/add")
     public AjaxResult add(@RequestBody VisaComment comment) {
-        // ★★★ 核心修复：处理 JSON 字段的空字符串问题 ★★★
+        // 处理 JSON 字段的空字符串问题
         // 如果 images 是空的或者是 "[]"，直接设为 null
         if (StringUtils.isEmpty(comment.getImages()) || "[]".equals(comment.getImages())) {
             comment.setImages(null);

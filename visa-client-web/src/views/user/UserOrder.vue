@@ -172,6 +172,35 @@
             </div>
           </div>
 
+         <!-- 状态 9 且 用户还没填单号时显示 -->
+          <div v-if="selectedOrder.status === 9" class="inner-card shipping-guide-card">
+            <div class="card-label"><i class="el-icon-truck"></i> 寄送原件指引</div>
+            <div class="agency-address">
+              <div class="address-item"><strong>收货人：</strong>全球通签证中心-张专员</div>
+              <div class="address-item"><strong>联系电话：</strong>138-0000-0000</div>
+              <div class="address-item"><strong>寄送地址：</strong>北京市朝阳区XX大厦1203室</div>
+            </div>
+
+            <el-divider></el-divider>
+
+            <!-- 填写单号区 -->
+            <div class="user-express-box">
+              <p class="input-tip">寄出后请填写您的快递单号：</p>
+               <el-input v-model="myExpressNo" placeholder="请输入顺丰/EMS单号" size="small" @click.native.stop>
+                <el-button slot="append" @click.stop="submitUserExpress">提交单号</el-button>
+              </el-input>
+            </div>
+          </div>
+
+          <!-- 已经填了单号，显示状态 -->
+          <div v-if="selectedOrder.expressToAgency" class="inner-card">
+            <div class="card-label">我的寄送物流</div>
+            <p style="font-size: 14px; color: #333">
+              单号：{{ selectedOrder.expressToAgency }}
+              <el-tag size="mini" type="info" style="margin-left: 10px">运送中</el-tag>
+            </p>
+          </div>
+
         </div>
 
         <!-- 8. 底部吸底主动作按钮 -->
@@ -296,10 +325,11 @@
 </template>
 
 <script>
-import AppleCard from '@/components/AppleCard'
-import { listMyOrders } from '@/api/order'
-import { addComment, addAdditionalComment } from '@/api/comment'
-import request from '@/utils/request'
+/* eslint-disable */
+import { addAdditionalComment, addComment } from '@/api/comment';
+import { listMyOrders } from '@/api/order';
+import AppleCard from '@/components/AppleCard';
+import request from '@/utils/request';
 
 export default {
   name: 'UserOrder',
@@ -326,7 +356,8 @@ export default {
         5: '待收货',
         6: '已完成',
         7: '材料过审，待预约面试',
-        8: '待面试'
+        8: '待面试',
+        9: '待寄送原件'
       },
 
       // --- 面试与反馈相关 ---
@@ -355,6 +386,7 @@ export default {
         id: null, // 评价记录的ID
         content: ''
       },
+      myExpressNo: '',
 
       // --- 筛选与搜索 ---
       activeTab: 'all',
@@ -363,6 +395,7 @@ export default {
         { label: '全部', key: 'all' },
         { label: '待付款', key: 'unpaid' },
         { label: '待办材料', key: 'action' },
+        { label: '寄送材料', key: 'mailing' },
         { label: '办理中', key: 'processing' },
         { label: '待收货', key: 'shipping' },
         { label: '待评价', key: 'review' }
@@ -393,6 +426,7 @@ export default {
         const isComm = order.isCommented
         if (this.activeTab === 'unpaid') tabMatch = s === 0
         else if (this.activeTab === 'action') tabMatch = [1, 3].includes(s)
+        else if (this.activeTab === 'mailing') tabMatch = (s === 9)
         else if (this.activeTab === 'processing') tabMatch = [2, 4, 7, 8].includes(s)
         else if (this.activeTab === 'shipping') tabMatch = s === 5
         else if (this.activeTab === 'review') {
@@ -429,8 +463,9 @@ export default {
     },
     /** 核心：开启详情抽屉 */
     openDetailDrawer (order) {
-      // 深度克隆，防止抽屉内操作直接修改主列表视图
       this.selectedOrder = JSON.parse(JSON.stringify(order))
+      // ★ 每次打开抽屉，把输入框清空，或者回显已有的单号
+      this.myExpressNo = order.expressToAgency || ''
       this.detailDrawerOpen = true
     },
 
@@ -831,17 +866,31 @@ export default {
     handleSearch () {
       // computed 会自动响应 searchKey 的变化
     },
-    /** 获取每个 Tab 的订单数量 */
+    /** 获取每个 Tab 的订单数量统计 */
     getTabCount (key) {
-      if (key === 'all') return 0 // 全部通常不显示数字
+      // 1. 全部订单不显示角标
+      if (key === 'all') return 0
+
+      // 2. 过滤逻辑
       return this.orderList.filter(order => {
         const s = order.status
         const isComm = order.isCommented
 
+        // 待付款：状态 0
         if (key === 'unpaid') return s === 0
-        if (key === 'action') return [1, 3].includes(s)
+
+        // 待办材料（核心任务区）：支付完没传(1) 或 审核没过需补交(3) 或 待寄送原件(9)
+        if (key === 'action') return [1, 3, 9].includes(s)
+
+        // 办理中：正在审核(2)、等待录入方案(7)、等待面试(8)、使馆办理中(4)
+        if (key === 'processing') return [2, 4, 7, 8].includes(s)
+
+        // 待收货：管理员已发货(5)
         if (key === 'shipping') return s === 5
+
+        // 待评价：已结案(6) 且 评价标志位不为 1
         if (key === 'review') return (s === 6 && isComm !== '1')
+
         return false
       }).length
     },
@@ -875,6 +924,23 @@ export default {
         this.getList()
       }).finally(() => {
         this.loading = false
+      })
+    },
+    submitUserExpress () {
+      if (!this.myExpressNo) return this.$message.error('请输入快递单号')
+
+      const data = {
+        id: this.selectedOrder.id,
+        expressToAgency: this.myExpressNo
+      }
+
+      request({
+        url: '/client/order/update',
+        method: 'put',
+        data: data
+      }).then(res => {
+        this.$message.success('单号提交成功，请等待中介签收')
+        this.getList() // 刷新列表，更新 selectedOrder 的状态
       })
     }
 
@@ -1624,5 +1690,14 @@ export default {
     margin-top: 15px; font-size: 13px; color: $primary-color; cursor: pointer;
     &:hover { text-decoration: underline; }
   }
+}
+
+.shipping-guide-card {
+  background: linear-gradient(135deg, #ffffff 0%, #f0f7ff 100%) !important;
+  .agency-address {
+    padding: 10px 0;
+    .address-item { font-size: 14px; margin-bottom: 8px; color: #444; }
+  }
+  .input-tip { font-size: 12px; color: #999; margin-bottom: 10px; }
 }
 </style>

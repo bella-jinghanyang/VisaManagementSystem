@@ -65,4 +65,9 @@ public interface IVisaOrderService
      * @return 签证订单
      */
     VisaOrder selectVisaOrderByOrderNo(String orderNo);
+
+    /**
+     * 查询有过沟通记录的订单列表
+     */
+    public List<VisaOrder> selectChatUserList();
 }

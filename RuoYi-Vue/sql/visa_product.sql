@@ -219,6 +219,29 @@ CREATE TABLE `visa_comment`
   DEFAULT CHARSET = utf8mb4 COMMENT ='签证评价表';
 
 ALTER TABLE `visa_order` ADD COLUMN `is_commented` CHAR(1) DEFAULT '0' COMMENT '是否评价(0未评 1已评)';
+ALTER TABLE `visa_order` ADD COLUMN `express_to_agency` VARCHAR(64) COMMENT '用户寄给中介的快递单号';
 
 ALTER TABLE `visa_comment` ADD COLUMN `additional_content` TEXT COMMENT '追加评价内容';
 ALTER TABLE `visa_comment` ADD COLUMN `additional_time` DATETIME COMMENT '追加评价时间';
+
+DROP TABLE IF EXISTS `order_message`;
+CREATE TABLE `order_message`
+(
+    `id`          BIGINT(20) NOT NULL AUTO_INCREMENT COMMENT '消息ID',
+    `order_id`    BIGINT(20)   DEFAULT 0 COMMENT '关联订单ID(0为通用咨询)',
+    `sender_type` TINYINT(1) NOT NULL COMMENT '发送者类型(1:客户 2:管理员)',
+    `content`     TEXT       NOT NULL COMMENT '消息内容',
+    `image_url`   VARCHAR(255) DEFAULT NULL COMMENT '图片路径(可选)',
+    `create_time` DATETIME     DEFAULT CURRENT_TIMESTAMP COMMENT '发送时间',
+    PRIMARY KEY (`id`),
+    INDEX `idx_order_id` (`order_id`) USING BTREE
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4 COMMENT ='订单留言记录表';
+
+-- 1. 增加客户ID字段
+ALTER TABLE `order_message` ADD COLUMN `customer_id` BIGINT(20) DEFAULT 0 COMMENT '所属客户ID';
+
+-- 2. 刷新旧数据（可选，把之前的0消息归给管理员或测试号）
+UPDATE `order_message` SET `customer_id` = 0 WHERE `customer_id` IS NULL;
+
+ALTER TABLE `order_message` ADD COLUMN `is_ai` CHAR(1) DEFAULT '0' COMMENT '是否为AI消息(0否 1是)';

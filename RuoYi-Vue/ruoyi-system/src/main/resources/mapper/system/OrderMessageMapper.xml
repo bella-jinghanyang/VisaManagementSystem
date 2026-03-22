@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.visa.mapper.OrderMessageMapper">
+    
+    <resultMap type="OrderMessage" id="OrderMessageResult">
+        <result property="id"    column="id"    />
+        <result property="orderId"    column="order_id"    />
+        <result property="senderType"    column="sender_type"    />
+        <result property="content"    column="content"    />
+        <result property="imageUrl"    column="image_url"    />
+        <result property="createTime"    column="create_time"    />
+        <result property="customerId" column="customer_id" />
+        <result property="isAi" column="is_ai" />
+    </resultMap>
+
+    <sql id="selectOrderMessageVo">
+        select id, order_id, sender_type, content, image_url, create_time, customer_id, is_ai from order_message
+    </sql>
+
+    <select id="selectOrderMessageList" parameterType="OrderMessage" resultMap="OrderMessageResult">
+        <include refid="selectOrderMessageVo"/>
+        <where>  
+            <if test="orderId != null "> and order_id = #{orderId}</if>
+            <if test="senderType != null "> and sender_type = #{senderType}</if>
+            <if test="content != null  and content != ''"> and content = #{content}</if>
+            <if test="imageUrl != null  and imageUrl != ''"> and image_url = #{imageUrl}</if>
+            <if test="customerId != null "> and customer_id = #{customerId}</if>
+             <if test="isAi != null "> and is_ai = #{isAi}</if>
+        </where>
+    </select>
+    
+    <select id="selectOrderMessageById" parameterType="Long" resultMap="OrderMessageResult">
+        <include refid="selectOrderMessageVo"/>
+        where id = #{id}
+    </select>
+
+    <insert id="insertOrderMessage" parameterType="OrderMessage" useGeneratedKeys="true" keyProperty="id">
+        insert into order_message
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="orderId != null">order_id,</if>
+            <if test="senderType != null">sender_type,</if>
+            <if test="content != null and content != ''">content,</if>
+            <if test="imageUrl != null">image_url,</if>
+            <if test="createTime != null">create_time,</if>
+            <if test="customerId != null">customer_id,</if>
+            <if test="isAi != null">is_ai,</if>
+         </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="orderId != null">#{orderId},</if>
+            <if test="senderType != null">#{senderType},</if>
+            <if test="content != null and content != ''">#{content},</if>
+            <if test="imageUrl != null">#{imageUrl},</if>
+            <if test="createTime != null">#{createTime},</if>
+            <if test="customerId != null">#{customerId},</if>
+            <if test="isAi != null">#{isAi},</if>
+         </trim>
+    </insert>
+
+    <update id="updateOrderMessage" parameterType="OrderMessage">
+        update order_message
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="orderId != null">order_id = #{orderId},</if>
+            <if test="senderType != null">sender_type = #{senderType},</if>
+            <if test="content != null and content != ''">content = #{content},</if>
+            <if test="imageUrl != null">image_url = #{imageUrl},</if>
+            <if test="createTime != null">create_time = #{createTime},</if>
+            <if test="customerId != null">#{customerId},</if>
+            <if test="isAi != null">is_ai = #{isAi},</if>
+        </trim>
+        where id = #{id}
+    </update>
+
+    <delete id="deleteOrderMessageById" parameterType="Long">
+        delete from order_message where id = #{id}
+    </delete>
+
+    <delete id="deleteOrderMessageByIds" parameterType="String">
+        delete from order_message where id in 
+        <foreach item="id" collection="array" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+</mapper>

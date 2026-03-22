@@ -34,8 +34,18 @@
       </el-table-column>
 
       <!-- 新增：面试信息列 (插入在提交时间列和当前状态列之间) -->
-      <el-table-column label="面试信息" align="center" width="220">
+      <el-table-column label="业务进展" align="center" width="220">
         <template slot-scope="scope">
+          <!-- 状态 9：展示用户寄出的单号 -->
+          <div v-if="scope.row.status === 9">
+            <div style="color: #E6A23C; font-weight: bold;">
+              <i class="el-icon-truck"></i> 客户寄送中
+            </div>
+            <div v-if="scope.row.expressToAgency" style="font-size: 12px; margin-top: 5px;">
+              单号：{{ scope.row.expressToAgency }}
+            </div>
+            <div v-else style="font-size: 11px; color: #999;">等待客户填写单号</div>
+          </div>
           <!-- 情况1：产品需要面试 -->
           <div v-if="scope.row.isInterviewRequired === 1">
 
@@ -85,6 +95,8 @@
           <template v-if="activeTab === 'processing'">
             <!-- ★★★ 新增：查看材料按钮，让专员随时能看图 ★★★ -->
             <el-button size="mini" type="text" icon="el-icon-view" @click="handleAudit(scope.row)">查看材料</el-button>
+            <el-button v-if="scope.row.status === 9" size="mini" type="success" icon="el-icon-receiving"
+              @click="handleReceivePhysical(scope.row)">原件已收悉</el-button>
             <!-- 情况1：状态为7。无论有没有方案，都显示按钮。有方案叫“修改”，没方案叫“发送” -->
             <el-button v-if="scope.row.status === 7" size="mini" type="primary"
               :icon="scope.row.interviewSlots ? 'el-icon-edit' : 'el-icon-date'" @click="handleSendSlots(scope.row)">
@@ -98,6 +110,8 @@
             <!-- 状态 8 或 4：通用录入最终结果 -->
             <el-button v-if="[8, 4].includes(scope.row.status)" size="mini" type="success" icon="el-icon-s-promotion"
               @click="handleResult(scope.row)">录入办理结果</el-button>
+
+
           </template>
 
         </template>
@@ -337,7 +351,7 @@ export default {
         trackingNumber: ''
       },
       statusMap: {
-        0: '待支付', 1: '待上传', 2: '待审核', 3: '需补交', 4: '办理中', 5: '待收货', 6: '已完成', 7: '材料过审，待预约面试', 8: '待面试'
+        0: '待支付', 1: '待上传', 2: '待审核', 3: '需补交', 4: '办理中', 5: '待收货', 6: '已完成', 7: '材料过审，待预约面试', 8: '待面试', 9: '待寄送原件'
       },
       slotOpen: false,    // 面试方案弹窗
       slotList: ['', ''], // 初始化两个空时间点
@@ -412,39 +426,41 @@ export default {
 
     /** 3. 提交审核 - 逻辑流转 */
     submitAudit(targetStatus) {
-      // 1. 先声明最终要变更为的状态
-      let finalStatus = targetStatus;
-
-      // 2. 核心逻辑判断：如果是点“通过”(4) 且该产品需要面试(1)
-      if (targetStatus === 4 && this.currentOrder.isInterviewRequired === 1) {
-        // 修改为状态 7: 材料过审，待预约面试
-        finalStatus = 7;
+      if (targetStatus === 4) { // 点击的是“通过”
+        this.$confirm('该签证是否需要客户邮寄护照原件？', '寄送确认', {
+          distinguishCancelAndClose: true,
+          confirmButtonText: '需要寄送',
+          cancelButtonText: '无需寄送(电子签)',
+          type: 'warning'
+        })
+          .then(() => {
+            // A方案：需要寄送，状态转为 9
+            this.executeStatusUpdate(9, "初审通过，已通知客户寄送原件");
+          })
+          .catch(action => {
+            if (action === 'cancel') {
+              // B方案：无需寄送，走原有的 4 或 7 逻辑
+              let finalStatus = this.currentOrder.isInterviewRequired === 1 ? 7 : 4;
+              this.executeStatusUpdate(finalStatus, "初审通过，已进入后续环节");
+            }
+          });
+      } else {
+        // 驳回逻辑保持不变
+        this.executeStatusUpdate(3, "已驳回申请");
       }
+    },
 
-      // 3. 构造请求数据
+    // 抽离出的更新方法
+    executeStatusUpdate(status, msg) {
       const data = {
         id: this.currentOrder.id,
-        status: finalStatus, // ★ 这里必须用判断后的 finalStatus
+        status: status,
         auditRemark: JSON.stringify(this.auditRemarks)
       };
-
-      // 4. 发送请求
       updateOrder(data).then(res => {
-        // 根据最终状态显示不同的成功语
-        let msg = "操作成功";
-        if (finalStatus === 7) {
-          msg = "材料已通过，订单已转入【待预约面试】环节";
-        } else if (finalStatus === 3) {
-          msg = "已成功驳回，等待用户修改";
-        } else if (finalStatus === 4) {
-          msg = "审核通过，已转入办理中";
-        }
-
         this.$modal.msgSuccess(msg);
         this.auditOpen = false;
-        this.getList(); // 刷新列表
-      }).catch(err => {
-        console.error("审核请求失败:", err);
+        this.getList();
       });
     },
 
@@ -619,6 +635,17 @@ export default {
         this.getList();
       });
     },
+
+    handleReceivePhysical(row) {
+      this.$confirm('确认已收到该客户的护照原件并核对无误？', '入库确认').then(() => {
+        // 收到原件后，根据是否需面试跳到 7 或 4
+        let nextStatus = row.isInterviewRequired === 1 ? 7 : 4;
+        updateOrder({ id: row.id, status: nextStatus }).then(res => {
+          this.$modal.msgSuccess("原件已入库，流程继续");
+          this.getList();
+        });
+      });
+    },
     // --- 辅助工具 ---
     getUrl(url) {
       if (!url) return '';
@@ -704,6 +731,27 @@ export default {
         this.auditOpen = false;
       });
     },
+    handleReceivePhysical(row) {
+      this.$confirm(`确认已收到订单 ${row.orderNo} 的护照原件并核对无误吗？`, '入库确认', {
+        confirmButtonText: '确认入库',
+        cancelButtonText: '取消',
+        type: 'success'
+      }).then(() => {
+        // 逻辑：收到原件后，判断该产品是否需要面试
+        let nextStatus = row.isInterviewRequired === 1 ? 7 : 4;
+
+        const data = {
+          id: row.id,
+          status: nextStatus,
+          remark: "管理员已签收实体材料，流程继续"
+        };
+
+        updateOrder(data).then(res => {
+          this.$modal.msgSuccess("签收成功，订单已进入下一步");
+          this.getList(); // 刷新列表
+        });
+      });
+    }
   }
 };
 </script>
