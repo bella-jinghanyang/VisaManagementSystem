@@ -117,6 +117,7 @@ public class SecurityConfig
                     .antMatchers("/swagger-ui.html", "/swagger-resources/**", "/webjars/**", "/*/api-docs", "/druid/**").permitAll()
                     // 1. 允许所有 C端业务接口匿名访问 (具体的业务逻辑里可以用代码判断是否需要登录，但SpringSecurity层先放行)
                     .antMatchers("/client/**").permitAll()
+                    .antMatchers("/client/stripe/**").permitAll()
                     // 2. 允许文件上传接口匿名访问 (解决头像上传 401 问题)
                     .antMatchers("/common/upload").permitAll()
                     .antMatchers("/profile/**").permitAll()

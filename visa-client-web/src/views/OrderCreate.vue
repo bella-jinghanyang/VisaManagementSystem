@@ -26,12 +26,8 @@
               </el-col>
             </el-row>
             <el-form-item label="详细收货地址" required>
-              <el-input
-                v-model="addressForm.address"
-                type="textarea"
-                :rows="3"
-                placeholder="请输入详细的省市区及街道门牌号，确保出签后护照能准确送达"
-              ></el-input>
+              <el-input v-model="addressForm.address" type="textarea" :rows="3"
+                placeholder="请输入详细的省市区及街道门牌号，确保出签后护照能准确送达"></el-input>
             </el-form-item>
           </el-form>
         </apple-card>
@@ -81,12 +77,7 @@
             <span class="total-amount">￥{{ (product.price * quantity).toFixed(2) }}</span>
           </div>
 
-          <el-button
-            type="primary"
-            class="submit-btn"
-            :loading="submitting"
-            @click="handleOrderSubmit"
-          >
+          <el-button type="primary" class="submit-btn" :loading="submitting" @click="handleOrderSubmit">
             提交订单并支付
           </el-button>
 
@@ -98,14 +89,15 @@
 </template>
 
 <script>
+/* eslint-disable */ 
 import AppleCard from '@/components/AppleCard'
 import { getProduct } from '@/api/product'
-import { submitOrder } from '@/api/order'
+import { listMyOrders, getStripePayUrl, submitOrder} from '@/api/order'; 
 
 export default {
   name: 'OrderCreate',
   components: { AppleCard },
-  data () {
+  data() {
     return {
       submitting: false,
       product: {},
@@ -118,7 +110,7 @@ export default {
       }
     }
   },
-  created () {
+  created() {
     // 1. 获取地址栏传过来的 productId 和 quantity
     const pid = this.$route.query.productId
     this.quantity = parseInt(this.$route.query.quantity) || 1
@@ -143,6 +135,7 @@ export default {
     }
   },
   methods: {
+    /*
     handleOrderSubmit () {
       // 1. 简单校验
       if (!this.addressForm.contactName || !this.addressForm.contactPhone || !this.addressForm.address) {
@@ -176,45 +169,193 @@ export default {
         this.submitting = false
       })
     }
+    */
+    // 修改 handleOrderSubmit 方法
+    handleOrderSubmit() {
+      if (!this.addressForm.contactName || !this.addressForm.contactPhone || !this.addressForm.address) {
+        this.$message.warning('请填写完整的收货信息')
+        return
+      }
 
+      this.submitting = true
+      const user = JSON.parse(localStorage.getItem('Client-User'))
+
+      // 1. 构造数据，这里不需要传 orderNo，让后端生成
+      const postData = {
+        productId: this.product.id,
+        customerId: user.id,
+        quantity: this.quantity,
+        mailingAddress: JSON.stringify(this.addressForm)
+      }
+
+      console.log("步骤1: 提交订单到后端...");
+
+      submitOrder(postData).then(res => {
+        // 2. 核心：从后端返回的结果里拿真正的单号 (比如那个 2026... 开头的)
+        // 注意：若依的新增接口通常会把填充了单号的对象放在 res.data 里返回
+        const realOrderNo = res.data; 
+
+        if (!realOrderNo) {
+           console.error("后端未返回正确的单号，res内容：", res);
+           this.$message.error("系统单号获取异常");
+           return;
+        }
+
+        console.log("步骤2: 拿到数据库真实单号:", realOrderNo);
+        this.$message.success('订单已生成，准备跳转支付...');
+
+        // 3. 延时一下，拿着【真实单号】去请求支付
+        setTimeout(() => {
+          getStripePayUrl(realOrderNo).then(payRes => {
+            if (payRes.code === 200) {
+              window.location.href = payRes.data;
+            } else {
+              this.$message.error(payRes.msg);
+            }
+          });
+        }, 500);
+
+      }).catch(err => {
+        this.$message.error('提交失败');
+      }).finally(() => {
+        this.submitting = false;
+      });
+    }
   }
 }
 </script>
 
 <style scoped lang="scss">
+/* eslint-disable */
 @import "@/assets/styles/variables.scss";
 
-.create-order-page { padding: 40px 0 100px; }
-.page-header { margin-bottom: 30px; h2 { font-size: 28px; font-weight: 700; } p { color: $text-secondary; } }
+.create-order-page {
+  padding: 40px 0 100px;
+}
 
-.main-layout { display: flex; gap: 30px; align-items: flex-start; }
-.left-form { flex: 1; }
-.right-summary { width: 380px; }
+.page-header {
+  margin-bottom: 30px;
 
-.section-title { font-size: 18px; font-weight: 600; margin-bottom: 20px; border-left: 4px solid $primary-color; padding-left: 12px; }
+  h2 {
+    font-size: 28px;
+    font-weight: 700;
+  }
+
+  p {
+    color: $text-secondary;
+  }
+}
+
+.main-layout {
+  display: flex;
+  gap: 30px;
+  align-items: flex-start;
+}
+
+.left-form {
+  flex: 1;
+}
+
+.right-summary {
+  width: 380px;
+}
+
+.section-title {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 20px;
+  border-left: 4px solid $primary-color;
+  padding-left: 12px;
+}
 
 .qty-display {
-  padding: 20px; background: #F7F9FC; border-radius: 12px; margin-bottom: 15px;
-  .qty-count { font-size: 24px; font-weight: 800; color: $primary-color; }
-}
-.notice-text { font-size: 13px; color: #909399; i { color: $primary-color; margin-right: 5px; } }
+  padding: 20px;
+  background: #F7F9FC;
+  border-radius: 12px;
+  margin-bottom: 15px;
 
-.sticky-card { position: sticky; top: 110px; }
+  .qty-count {
+    font-size: 24px;
+    font-weight: 800;
+    color: $primary-color;
+  }
+}
+
+.notice-text {
+  font-size: 13px;
+  color: #909399;
+
+  i {
+    color: $primary-color;
+    margin-right: 5px;
+  }
+}
+
+.sticky-card {
+  position: sticky;
+  top: 110px;
+}
+
 .product-mini {
-  display: flex; gap: 15px; align-items: center;
-  .prod-img { width: 80px; height: 60px; border-radius: 10px; object-fit: cover; }
-  h4 { margin-bottom: 5px; font-size: 16px; }
+  display: flex;
+  gap: 15px;
+  align-items: center;
+
+  .prod-img {
+    width: 80px;
+    height: 60px;
+    border-radius: 10px;
+    object-fit: cover;
+  }
+
+  h4 {
+    margin-bottom: 5px;
+    font-size: 16px;
+  }
 }
 
-.divider { height: 1px; background: #eee; margin: 20px 0; }
+.divider {
+  height: 1px;
+  background: #eee;
+  margin: 20px 0;
+}
 
-.price-row { display: flex; justify-content: space-between; margin-bottom: 10px; color: $text-secondary; font-size: 14px; }
+.price-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  color: $text-secondary;
+  font-size: 14px;
+}
+
 .total-row {
-  display: flex; justify-content: space-between; align-items: baseline;
-  .label { font-weight: 600; }
-  .total-amount { font-size: 32px; font-weight: 800; color: #ff6b6b; }
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+
+  .label {
+    font-weight: 600;
+  }
+
+  .total-amount {
+    font-size: 32px;
+    font-weight: 800;
+    color: #ff6b6b;
+  }
 }
 
-.submit-btn { width: 100%; height: 56px; font-size: 18px; margin-top: 30px; border-radius: 16px !important; }
-.safe-tips { text-align: center; color: #C0C4CC; font-size: 12px; margin-top: 15px; }
+.submit-btn {
+  width: 100%;
+  height: 56px;
+  font-size: 18px;
+  margin-top: 30px;
+  border-radius: 16px !important;
+}
+
+.safe-tips {
+  text-align: center;
+  color: #C0C4CC;
+  font-size: 12px;
+  margin-top: 15px;
+}
 </style>

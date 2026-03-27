@@ -1,3 +1,4 @@
+/* eslint-disable */
 import request from '@/utils/request'
 
 // 提交订单
@@ -39,5 +40,22 @@ export function getOrder (id) {
   return request({
     url: '/client/order/detail/' + id,
     method: 'get'
+  })
+}
+
+// 在你的 api 相关文件里增加
+export function getStripePayUrl(orderNo) {
+  return request({
+    url: '/client/stripe/pay',
+    method: 'get',
+    params: { orderNo: orderNo } // 这样会拼接到 URL 后面：?orderNo=xxx
+  })
+}
+
+export function confirmStripePayment(data) {
+  return request({
+    url: '/client/stripe/confirm',
+    method: 'post',
+    data: data
   })
 }

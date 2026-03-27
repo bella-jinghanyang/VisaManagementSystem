@@ -6,6 +6,7 @@ import com.alipay.api.AlipayClient;
 import com.alipay.api.DefaultAlipayClient;
 import com.alipay.api.internal.util.AlipaySignature;
 import com.alipay.api.request.AlipayTradePagePayRequest;
+import com.alipay.api.response.AlipayTradePagePayResponse;
 import com.ruoyi.common.annotation.Anonymous;
 import com.ruoyi.common.core.controller.BaseController;
 import com.ruoyi.common.core.domain.AjaxResult;
@@ -32,18 +33,62 @@ public class ClientAlipayController extends BaseController {
     /**
      * 1. 发起支付接口 (前端点击去支付时调用)
      */
+//    @GetMapping("/pay")
+//    public AjaxResult pay(@RequestParam("orderNo") String orderNo) {
+//        // 1. 查订单
+//        VisaOrder order = orderService.selectVisaOrderByOrderNo(orderNo);
+//        if (order == null) return error("订单不存在");
+//
+//        // 2. 初始化 AlipayClient
+//        AlipayClient alipayClient = new DefaultAlipayClient(
+//                alipayConfig.getGatewayUrl(),
+//                alipayConfig.getAppId(),
+//                alipayConfig.getPrivateKey(),
+//                "json", "UTF-8",
+//                alipayConfig.getAlipayPublicKey(),
+//                "RSA2"
+//        );
+//
+//        // 3. 构造请求
+//        AlipayTradePagePayRequest request = new AlipayTradePagePayRequest();
+//        request.setReturnUrl(alipayConfig.getReturnUrl());
+//        request.setNotifyUrl(alipayConfig.getNotifyUrl());
+//
+//        // 4. 业务参数 (JSON)
+//        // 必须包含：out_trade_no, total_amount, subject, product_code
+//        String bizContent = "{\"out_trade_no\":\"" + order.getOrderNo() + "\","
+//                + "\"total_amount\":\"" + order.getTotalAmount() + "\","
+//                + "\"subject\":\"签证办理\","
+//                + "\"product_code\":\"FAST_INSTANT_TRADE_PAY\"}";
+//        request.setBizContent(bizContent);
+//
+//        // 5. 生成 HTML
+//        try {
+//            String form = alipayClient.pageExecute(request).getBody();
+//            // 把 HTML 放在 msg 里返回给前端
+//            return AjaxResult.success("下单成功", form);
+//        } catch (AlipayApiException e) {
+//            e.printStackTrace();
+//            return error("支付宝调用失败：" + e.getMessage());
+//        }
+//    }
+
     @GetMapping("/pay")
     public AjaxResult pay(@RequestParam("orderNo") String orderNo) {
         // 1. 查订单
         VisaOrder order = orderService.selectVisaOrderByOrderNo(orderNo);
         if (order == null) return error("订单不存在");
 
+        // 【调试建议1】：检查订单金额。金额必须大于0，且不能有超过2位的小数
+        System.out.println(">>> 准备支付，订单号: " + order.getOrderNo() + "，金额: " + order.getTotalAmount());
+
         // 2. 初始化 AlipayClient
         AlipayClient alipayClient = new DefaultAlipayClient(
                 alipayConfig.getGatewayUrl(),
                 alipayConfig.getAppId(),
                 alipayConfig.getPrivateKey(),
-                "json", "UTF-8",
+                "json",
+                "UTF-8",
                 alipayConfig.getAlipayPublicKey(),
                 "RSA2"
         );
@@ -53,20 +98,38 @@ public class ClientAlipayController extends BaseController {
         request.setReturnUrl(alipayConfig.getReturnUrl());
         request.setNotifyUrl(alipayConfig.getNotifyUrl());
 
-        // 4. 业务参数 (JSON)
-        // 必须包含：out_trade_no, total_amount, subject, product_code
-        String bizContent = "{\"out_trade_no\":\"" + order.getOrderNo() + "\","
-                + "\"total_amount\":\"" + order.getTotalAmount() + "\","
-                + "\"subject\":\"签证办理\","
-                + "\"product_code\":\"FAST_INSTANT_TRADE_PAY\"}";
+        // 4. 业务参数
+        // 【建议】：使用官方推荐的对象方式构建 JSON，防止手动拼接导致引号或格式问题
+        Map<String, Object> bizModel = new HashMap<>();
+        bizModel.put("out_trade_no", order.getOrderNo());
+        bizModel.put("total_amount", order.getTotalAmount().toString()); // 确保是字符串
+        bizModel.put("subject", "签证办理-" + order.getOrderNo());
+        bizModel.put("product_code", "FAST_INSTANT_TRADE_PAY");
+
+        String bizContent = JSON.toJSONString(bizModel);
         request.setBizContent(bizContent);
+
+        System.out.println(">>> 请求业务参数 (bizContent): " + bizContent);
 
         // 5. 生成 HTML
         try {
-            String form = alipayClient.pageExecute(request).getBody();
-            // 把 HTML 放在 msg 里返回给前端
-            return AjaxResult.success("下单成功", form);
+            // 这里换成 execute，我们可以先检查一下响应状态
+            AlipayTradePagePayResponse response = alipayClient.pageExecute(request);
+            if(response.isSuccess()){
+                String form = response.getBody();
+                System.out.println(">>> 下单成功，生成的表单内容长度: " + form.length());
+                return AjaxResult.success("下单成功", form);
+            } else {
+                // 【关键：在这里找 sub_msg】
+                System.err.println(">>> 支付宝下单失败！");
+                System.err.println("错误代码: " + response.getCode());
+                System.err.println("错误描述: " + response.getMsg());
+                System.err.println("子错误代码: " + response.getSubCode());
+                System.err.println("子错误描述: " + response.getSubMsg());
+                return error("支付宝响应失败：" + response.getSubMsg());
+            }
         } catch (AlipayApiException e) {
+            System.err.println(">>> 支付宝调用发生异常！");
             e.printStackTrace();
             return error("支付宝调用失败：" + e.getMessage());
         }

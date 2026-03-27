@@ -327,9 +327,9 @@
 <script>
 /* eslint-disable */
 import { addAdditionalComment, addComment } from '@/api/comment';
-import { listMyOrders } from '@/api/order';
 import AppleCard from '@/components/AppleCard';
 import request from '@/utils/request';
+import { listMyOrders, getStripePayUrl } from '@/api/order'; 
 
 export default {
   name: 'UserOrder',
@@ -408,10 +408,7 @@ export default {
   },
   created () {
     this.getList()
-    // 全局事件监听
-    this.$bus.$on('order-updated', () => {
-      this.getList()
-    })
+    this.checkStripeResult();
   },
   beforeDestroy () {
     this.$bus.$off('order-updated')
@@ -480,7 +477,7 @@ export default {
     },
 
     // 唤起支付宝支付
-    // UserOrder.vue -> methods
+    /*
     handlePay (order) {
       const loading = this.$loading({
         lock: true,
@@ -533,9 +530,78 @@ export default {
         loading.close()
       })
     },
+    */
 
+    /** 
+     * 核心修改：发起 Stripe 支付 
+     */
+   
+    handlePay(order) {
+      const loading = this.$loading({
+        lock: true,
+        text: '正在前往安全支付中心...',
+        spinner: 'el-icon-loading',
+        background: 'rgba(255, 255, 255, 0.7)'
+      })
+
+      // 调用 Stripe 接口
+      getStripePayUrl(order.orderNo).then(res => {
+        loading.close()
+        if (res.code === 200) {
+          // ★★★ 核心：这里一定要用 res.data ！！ ★★★
+          // 如果写成 res.msg，就会跳到那个“下单成功”的错误页面
+          console.log("即将跳转到 Stripe:", res.data);
+          window.location.href = res.data;
+        } else {
+          this.$message.error(res.msg)
+        }
+      }).catch(err => {
+        loading.close()
+        this.$message.error("支付网关连接失败")
+      })
+    },
+
+    // UserOrder.vue 的 methods 
+
+    // UserOrder.vue
+
+// UserOrder.vue 里的 methods
+
+checkStripeResult() {
+  // 1. 这种方式能抓取到无论是 # 之前还是之后的参数
+  const fullUrl = window.location.href;
+  console.log(">>> 调试：当前浏览器地址栏全路径:", fullUrl);
+
+  const urlObj = new URL(fullUrl.replace('#/', '')); // 处理 hash 模式干扰
+  const payResult = urlObj.searchParams.get('payResult');
+  const orderNo = urlObj.searchParams.get('orderNo');
+
+  console.log(">>> 调试：尝试提取到的参数:", { payResult, orderNo });
+
+  if (payResult === 'success' && orderNo) {
+    console.log(">>> 命中支付成功逻辑，准备请求后端 confirm...");
+    
+    // 先清理 URL，防止用户刷新页面重复请求
+    // 注意：如果是 hash 模式用 '/user/orders'，history 模式用相同路径
+    this.$router.replace('/user/orders');
+
+    request({
+      url: '/client/stripe/confirm',
+      method: 'post',
+      data: { orderNo: orderNo }
+    }).then(res => {
+      console.log(">>> 后端 confirm 接口返回:", res);
+      if (res.code === 200) {
+        this.$message.success('支付同步成功，订单已进入下一阶段');
+        this.getList(); // 刷新列表
+      }
+    }).catch(err => {
+      console.error(">>> 请求 confirm 接口异常:", err);
+    });
+  }
+},
     // 跳转上传页 (下一步要做这个页面)
-    handleUpload (order) {
+    handleUpload(order) {
       this.$router.push(`/order/upload?orderId=${order.id}`)
     },
 
