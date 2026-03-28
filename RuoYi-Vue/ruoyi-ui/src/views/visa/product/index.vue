@@ -63,7 +63,7 @@
       </el-table-column>
       <el-table-column label="所需材料" align="center" width="120">
         <template slot-scope="scope">
-          <el-popover placement="right" width="300" trigger="hover">
+          <el-popover placement="right" width="450" trigger="hover">
             <!-- 悬浮层里的内容 -->
             <el-table :data="parseMaterials(scope.row.requirementsConfig)" border size="mini">
               <el-table-column width="100" property="name" label="名称"></el-table-column>
@@ -72,6 +72,13 @@
                   <span v-if="s.row.type === 'image'">图片</span>
                   <span v-else-if="s.row.type === 'file'">文件</span>
                   <span v-else>文本</span>
+                </template>
+              </el-table-column>
+              <el-table-column width="100" label="适用人群">
+                <template slot-scope="s">
+                  <el-tag size="mini" :type="s.row.targetGroup === 'ALL' ? 'info' : 'success'">
+                    {{ getIdentityLabel(s.row.targetGroup) }}
+                  </el-tag>
                 </template>
               </el-table-column>
               <el-table-column property="required" label="必填">
@@ -368,6 +375,18 @@ export default {
       listCountry(queryParams).then(res => this.countryOptions = res.rows);
       listType(queryParams).then(res => this.typeOptions = res.rows);
       listDistrict(queryParams).then(res => this.districtOptions = res.rows);
+    },
+    getIdentityLabel(val) {
+      const map = {
+        'ALL': '所有人',
+        'EMPLOYED': '在职',
+        'FREELANCE': '自由职业',
+        'UNEMPLOYED': '无业/主妇',
+        'STUDENT': '学生',
+        'RETIRED': '退休',
+        'CHILD': '学龄前'
+      };
+      return map[val] || '所有人';
     },
     // 辅助函数：安全解析 JSON
     parseMaterials(jsonStr) {

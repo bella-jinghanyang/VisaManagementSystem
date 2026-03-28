@@ -70,4 +70,10 @@ public interface IVisaOrderService
      * 查询有过沟通记录的订单列表
      */
     public List<VisaOrder> selectChatUserList();
+
+    /**
+     * 循环插入申请人子表的方法
+     */
+    public void insertApplicants(VisaOrder visaOrder);
+
 }

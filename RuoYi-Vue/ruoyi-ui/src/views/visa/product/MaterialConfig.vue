@@ -24,6 +24,21 @@
         </template>
       </el-table-column>
 
+      <!-- 3. 适用人群 -->
+      <el-table-column label="适用人群" prop="targetGroup" width="150">
+        <template slot-scope="scope">
+          <el-select v-model="scope.row.targetGroup" placeholder="所有人">
+            <el-option label="所有人" value="ALL" />
+            <el-option label="在职人员" value="EMPLOYED" />
+            <el-option label="自由职业" value="FREELANCE" />
+            <el-option label="无业人员/家庭主妇" value="UNEMPLOYED" />
+            <el-option label="学生" value="STUDENT" />
+            <el-option label="退休人员" value="RETIRED" />
+            <el-option label="学龄前儿童" value="CHILD" />
+          </el-select>
+        </template>
+      </el-table-column>
+
       <!-- 3. 是否必填 -->
       <el-table-column label="是否必填" width="100" align="center">
         <template slot-scope="scope">
@@ -118,7 +133,8 @@ export default {
         required: true,
         desc: "",
         templateName: "",
-        templateUrl: ""
+        templateUrl: "",
+        targetGroup: "ALL"
       });
     },
     handleDelete(index) {

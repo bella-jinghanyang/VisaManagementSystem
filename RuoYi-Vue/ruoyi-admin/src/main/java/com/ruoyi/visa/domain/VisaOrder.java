@@ -2,6 +2,8 @@ package com.ruoyi.visa.domain;
 
 import java.math.BigDecimal;
 import java.util.Date;
+import java.util.List;
+
 import com.fasterxml.jackson.annotation.JsonFormat;
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
@@ -54,8 +56,8 @@ public class VisaOrder extends BaseEntity
     private String alipayNo;
 
     /** 支付成功时间 */
-    @JsonFormat(pattern = "yyyy-MM-dd")
-    @Excel(name = "支付成功时间", width = 30, dateFormat = "yyyy-MM-dd")
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    @Excel(name = "支付成功时间", width = 30, dateFormat = "yyyy-MM-dd HH:mm:ss")
     private Date payTime;
 
     /** 用户提交的动态材料数据(JSON) */
@@ -118,6 +120,26 @@ public class VisaOrder extends BaseEntity
     private Date additionalTime;
 
     private String isAi;
+
+    private List<VisaOrderApplicant> applicantList;
+
+    public String getIdentity() {
+        return identity;
+    }
+
+    public void setIdentity(String identity) {
+        this.identity = identity;
+    }
+
+    private String identity;
+
+    public List<VisaOrderApplicant> getApplicantList() {
+        return applicantList;
+    }
+
+    public void setApplicantList(List<VisaOrderApplicant> applicantList) {
+        this.applicantList = applicantList;
+    }
 
     public String getIsAi() {
         return isAi;

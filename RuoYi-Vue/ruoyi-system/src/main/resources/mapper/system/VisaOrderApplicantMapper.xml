@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.visa.mapper.VisaOrderApplicantMapper">
+    
+    <resultMap type="VisaOrderApplicant" id="VisaOrderApplicantResult">
+        <result property="id"    column="id"    />
+        <result property="orderId"    column="order_id"    />
+        <result property="orderNo"    column="order_no"    />
+        <result property="name"    column="name"    />
+        <result property="idCard"    column="id_card"    />
+        <result property="passportNo"    column="passport_no"    />
+        <result property="createTime"    column="create_time"    />
+        <result property="identity" column="identity" />
+    </resultMap>
+
+    <sql id="selectVisaOrderApplicantVo">
+        select id, order_id, order_no, name, id_card, passport_no, create_time, identity from visa_order_applicant
+    </sql>
+
+    <select id="selectVisaOrderApplicantList" parameterType="VisaOrderApplicant" resultMap="VisaOrderApplicantResult">
+        <include refid="selectVisaOrderApplicantVo"/>
+        <where>  
+            <if test="orderId != null "> and order_id = #{orderId}</if>
+            <if test="orderNo != null  and orderNo != ''"> and order_no = #{orderNo}</if>
+            <if test="name != null  and name != ''"> and name like concat('%', #{name}, '%')</if>
+            <if test="idCard != null  and idCard != ''"> and id_card = #{idCard}</if>
+            <if test="passportNo != null  and passportNo != ''"> and passport_no = #{passportNo}</if>
+             <if test="identity != null and identity != ''"> and identity = #{identity}</if>
+        </where>
+    </select>
+    
+    <select id="selectVisaOrderApplicantById" parameterType="Long" resultMap="VisaOrderApplicantResult">
+        <include refid="selectVisaOrderApplicantVo"/>
+        where id = #{id}
+    </select>
+
+    <insert id="insertVisaOrderApplicant" parameterType="VisaOrderApplicant" useGeneratedKeys="true" keyProperty="id">
+        insert into visa_order_applicant
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="orderId != null">order_id,</if>
+            <if test="orderNo != null and orderNo != ''">order_no,</if>
+            <if test="name != null and name != ''">name,</if>
+            <if test="idCard != null">id_card,</if>
+            <if test="passportNo != null">passport_no,</if>
+            <if test="createTime != null">create_time,</if>
+            <if test="identity != null">identity</if>
+         </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="orderId != null">#{orderId},</if>
+            <if test="orderNo != null and orderNo != ''">#{orderNo},</if>
+            <if test="name != null and name != ''">#{name},</if>
+            <if test="idCard != null">#{idCard},</if>
+            <if test="passportNo != null">#{passportNo},</if>
+            <if test="createTime != null">#{createTime},</if>
+            <if test="identity != null">#{identity}</if>
+         </trim>
+    </insert>
+
+    <update id="updateVisaOrderApplicant" parameterType="VisaOrderApplicant">
+        update visa_order_applicant
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="orderId != null">order_id = #{orderId},</if>
+            <if test="orderNo != null and orderNo != ''">order_no = #{orderNo},</if>
+            <if test="name != null and name != ''">name = #{name},</if>
+            <if test="idCard != null">id_card = #{idCard},</if>
+            <if test="passportNo != null">passport_no = #{passportNo},</if>
+            <if test="createTime != null">create_time = #{createTime},</if>
+            <if test="identity != null">identity = #{identity}</if>
+        </trim>
+        where id = #{id}
+    </update>
+
+    <delete id="deleteVisaOrderApplicantById" parameterType="Long">
+        delete from visa_order_applicant where id = #{id}
+    </delete>
+
+    <delete id="deleteVisaOrderApplicantByIds" parameterType="String">
+        delete from visa_order_applicant where id in 
+        <foreach item="id" collection="array" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+</mapper>

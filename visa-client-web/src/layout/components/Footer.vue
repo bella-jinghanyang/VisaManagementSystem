@@ -2,7 +2,7 @@
   <div class="site-footer">
     <div class="footer-content">
       <div class="copyright">
-        © 2024 Global Visa. All rights reserved.
+        © 2026 Global Visa. All rights reserved.
       </div>
       <div class="links">
         <span>隐私政策</span>

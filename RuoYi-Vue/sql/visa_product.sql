@@ -245,3 +245,19 @@ ALTER TABLE `order_message` ADD COLUMN `customer_id` BIGINT(20) DEFAULT 0 COMMEN
 UPDATE `order_message` SET `customer_id` = 0 WHERE `customer_id` IS NULL;
 
 ALTER TABLE `order_message` ADD COLUMN `is_ai` CHAR(1) DEFAULT '0' COMMENT '是否为AI消息(0否 1是)';
+
+CREATE TABLE `visa_order_applicant`
+(
+    `id`          bigint(20)  NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    `order_id`    bigint(20)  NOT NULL COMMENT '关联订单ID',
+    `order_no`    varchar(32) NOT NULL COMMENT '关联订单号',
+    `name`        varchar(50) NOT NULL COMMENT '姓名',
+    `id_card`     varchar(20) DEFAULT NULL COMMENT '身份证号',
+    `passport_no` varchar(20) DEFAULT NULL COMMENT '护照号',
+    `create_time` datetime    DEFAULT NULL COMMENT '创建时间',
+    PRIMARY KEY (`id`)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4 COMMENT ='订单申请人基本信息表';
+
+ALTER TABLE `visa_order_applicant`
+    ADD COLUMN `identity` varchar(20) DEFAULT 'ADULT' COMMENT '身份类型: ADULT(在职), CHILD(未成年), STUDENT(学生), RETIRED(退休)' AFTER `passport_no`;

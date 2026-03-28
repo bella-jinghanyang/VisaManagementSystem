@@ -580,9 +580,6 @@ checkStripeResult() {
 
   if (payResult === 'success' && orderNo) {
     console.log(">>> 命中支付成功逻辑，准备请求后端 confirm...");
-    
-    // 先清理 URL，防止用户刷新页面重复请求
-    // 注意：如果是 hash 模式用 '/user/orders'，history 模式用相同路径
     this.$router.replace('/user/orders');
 
     request({

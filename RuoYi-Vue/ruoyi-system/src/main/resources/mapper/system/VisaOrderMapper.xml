@@ -40,6 +40,8 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <result property="expressToAgency" column="express_to_agency" />
     </resultMap>
 
+
+
     <sql id="selectVisaOrderVo">
         select
             vo.id,
@@ -148,6 +150,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="interviewSlots != null">interview_slots</if>
             <if test="supplementaryMaterials != null">supplementary_materials</if>
             <if test="expressToAgency != null">express_to_agency</if>
+
          </trim>
         <trim prefix="values (" suffix=")" suffixOverrides=",">
             <if test="orderNo != null and orderNo != ''">#{orderNo},</if>
@@ -174,6 +177,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="interviewSlots != null">#{interviewSlots},</if>
             <if test="supplementaryMaterials != null">#{supplementaryMaterials},</if>
             <if test="expressToAgency != null">#{expressToAgency},</if>
+
          </trim>
     </insert>
 

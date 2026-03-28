@@ -8,6 +8,43 @@
     <div class="main-layout">
       <!-- 左侧：基础信息填写 -->
       <div class="left-form">
+        <!-- 申请人信息动态卡片 -->
+        <apple-card v-for="index in quantity" :key="'app' + index" class="mb-30">
+          <h3 class="section-title">申请人 #{{ index }} 基本信息</h3>
+          <el-form label-position="top">
+            <el-row :gutter="20">
+              <el-col :span="12">
+                <el-form-item label="真实姓名" required>
+                  <el-input v-model="applicantList[index - 1].name" placeholder="请输入姓名(与护照一致)"></el-input>
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
+                <el-form-item label="身份类型" required>
+                  <el-select v-model="applicantList[index - 1].identity" placeholder="请选择身份" style="width: 100%">
+                    <el-option label="在职人员" value="EMPLOYED" />
+                    <el-option label="自由职业" value="FREELANCE" />
+                    <el-option label="无业人员/家庭主妇" value="UNEMPLOYED" />
+                    <el-option label="学生" value="STUDENT" />
+                    <el-option label="退休人员" value="RETIRED" />
+                    <el-option label="学龄前儿童" value="CHILD" />
+                  </el-select>
+                </el-form-item>
+              </el-col>
+            </el-row>
+            <el-row :gutter="20">
+              <el-col :span="12">
+                <el-form-item label="身份证号">
+                  <el-input v-model="applicantList[index - 1].idCard" placeholder="请输入18位身份证号"></el-input>
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
+                <el-form-item label="护照号码">
+                  <el-input v-model="applicantList[index - 1].passportNo" placeholder="请输入护照号"></el-input>
+                </el-form-item>
+              </el-col>
+            </el-row>
+          </el-form>
+        </apple-card>
 
         <!-- 1. 邮寄信息卡片 -->
         <apple-card class="mb-30">
@@ -89,10 +126,10 @@
 </template>
 
 <script>
-/* eslint-disable */ 
+/* eslint-disable */
 import AppleCard from '@/components/AppleCard'
 import { getProduct } from '@/api/product'
-import { listMyOrders, getStripePayUrl, submitOrder} from '@/api/order'; 
+import { listMyOrders, getStripePayUrl, submitOrder } from '@/api/order';
 
 export default {
   name: 'OrderCreate',
@@ -107,7 +144,9 @@ export default {
         contactName: '',
         contactPhone: '',
         address: ''
-      }
+      },
+      applicantList: [], // 申请人数组
+      
     }
   },
   created() {
@@ -133,45 +172,33 @@ export default {
       this.addressForm.contactName = user.realName || ''
       this.addressForm.contactPhone = user.phone || ''
     }
+
+    
+    // 根据购买人数初始化申请人列表
+    this.applicantList = [];
+    for (let i = 0; i < this.quantity; i++) {
+      this.applicantList.push({
+        name: '',
+        identity: 'EMPLOYED', // 默认选“在职”，因为这是最主流的人群
+        idCard: '',
+        passportNo: ''
+      });
+    }
   },
   methods: {
-    /*
-    handleOrderSubmit () {
-      // 1. 简单校验
-      if (!this.addressForm.contactName || !this.addressForm.contactPhone || !this.addressForm.address) {
-        this.$message.warning('请填写完整的收货信息')
-        return
-      }
-
-      this.submitting = true
-      const user = JSON.parse(localStorage.getItem('Client-User'))
-
-      // 2. 构造传给后端的对象
-      const postData = {
-        productId: this.product.id,
-        customerId: user.id,
-        quantity: this.quantity,
-        // ★ 核心：把收货信息对象转成 JSON 字符串存入 mailing_address 字段
-        mailingAddress: JSON.stringify(this.addressForm)
-      }
-
-      // 3. 调用后端接口
-      submitOrder(postData).then(res => {
-        this.$bus.$emit('order-updated') // 订单数 +1
-        this.$bus.$emit('cart-updated') // 购物车 -1
-        this.$message.success('订单已生成，准备跳转支付...')
-        this.$bus.$emit('cart-updated')
-        // 跳到订单列表页
-        setTimeout(() => {
-          this.$router.push('/user/orders')
-        }, 1500)
-      }).finally(() => {
-        this.submitting = false
-      })
-    }
-    */
-    // 修改 handleOrderSubmit 方法
     handleOrderSubmit() {
+     // 1. 校验申请人信息是否填完整
+      for (let i = 0; i < this.applicantList.length; i++) {
+        if (!this.applicantList[i].name) {
+          this.$message.warning(`请填写申请人 #${i+1} 的姓名`);
+          return;
+        }
+        if (!this.applicantList[i].identity) {
+          this.$message.warning(`请选择申请人 #${i+1} 的身份类型`);
+          return;
+        }
+      }
+
       if (!this.addressForm.contactName || !this.addressForm.contactPhone || !this.addressForm.address) {
         this.$message.warning('请填写完整的收货信息')
         return
@@ -185,20 +212,19 @@ export default {
         productId: this.product.id,
         customerId: user.id,
         quantity: this.quantity,
-        mailingAddress: JSON.stringify(this.addressForm)
+        mailingAddress: JSON.stringify(this.addressForm),
+        applicantList: this.applicantList
       }
 
       console.log("步骤1: 提交订单到后端...");
 
       submitOrder(postData).then(res => {
-        // 2. 核心：从后端返回的结果里拿真正的单号 (比如那个 2026... 开头的)
-        // 注意：若依的新增接口通常会把填充了单号的对象放在 res.data 里返回
-        const realOrderNo = res.data; 
+        const realOrderNo = res.data;
 
         if (!realOrderNo) {
-           console.error("后端未返回正确的单号，res内容：", res);
-           this.$message.error("系统单号获取异常");
-           return;
+          console.error("后端未返回正确的单号，res内容：", res);
+          this.$message.error("系统单号获取异常");
+          return;
         }
 
         console.log("步骤2: 拿到数据库真实单号:", realOrderNo);

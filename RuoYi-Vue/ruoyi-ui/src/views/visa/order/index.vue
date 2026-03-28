@@ -1,28 +1,28 @@
-
 <template>
   <div class="app-container">
     <el-form :model="queryParams" ref="queryForm" size="small" :inline="true" v-show="showSearch" label-width="100px">
       <el-form-item label="订单编号" prop="orderNo">
         <el-input v-model="queryParams.orderNo" placeholder="请输入订单编号" clearable @keyup.enter.native="handleQuery" />
       </el-form-item>
-      
-      <!-- ID 转名称：这里从输入框改为下拉选择名称 -->
       <el-form-item label="客户名称" prop="customerId">
         <el-select v-model="queryParams.customerId" placeholder="请选择/搜索客户" clearable filterable @change="handleQuery">
-          <el-option v-for="item in customerList" :key="item.id" :label="item.nickName || item.userName || item.name || item.id" :value="item.id" />
+          <el-option v-for="item in customerList" :key="item.id"
+            :label="item.realName || item.nickName || item.userName || item.id" :value="item.id" />
         </el-select>
       </el-form-item>
       <el-form-item label="产品名称" prop="productId">
         <el-select v-model="queryParams.productId" placeholder="请选择/搜索产品" clearable filterable @change="handleQuery">
-          <el-option v-for="item in productList" :key="item.id" :label="item.title || item.productName || item.name || item.id" :value="item.id" />
+          <el-option v-for="item in productList" :key="item.id"
+            :label="item.title || item.productName || item.name || item.id" :value="item.id" />
         </el-select>
       </el-form-item>
-      
-      <el-form-item label="支付宝流水号" prop="alipayNo">
+
+      <el-form-item label="流水号" prop="alipayNo">
         <el-input v-model="queryParams.alipayNo" placeholder="请输入流水号" clearable @keyup.enter.native="handleQuery" />
       </el-form-item>
       <el-form-item label="快递单号" prop="trackingNumber">
-        <el-input v-model="queryParams.trackingNumber" placeholder="请输入快递单号" clearable @keyup.enter.native="handleQuery" />
+        <el-input v-model="queryParams.trackingNumber" placeholder="请输入快递单号" clearable
+          @keyup.enter.native="handleQuery" />
       </el-form-item>
       <el-form-item>
         <el-button type="primary" icon="el-icon-search" size="mini" @click="handleQuery">搜索</el-button>
@@ -32,16 +32,20 @@
 
     <el-row :gutter="10" class="mb8">
       <el-col :span="1.5">
-        <el-button type="primary" plain icon="el-icon-plus" size="mini" @click="handleAdd" v-hasPermi="['visa:order:add']">新增</el-button>
+        <el-button type="primary" plain icon="el-icon-plus" size="mini" @click="handleAdd"
+          v-hasPermi="['visa:order:add']">新增</el-button>
       </el-col>
       <el-col :span="1.5">
-        <el-button type="success" plain icon="el-icon-edit" size="mini" :disabled="single" @click="handleUpdate" v-hasPermi="['visa:order:edit']">修改</el-button>
+        <el-button type="success" plain icon="el-icon-edit" size="mini" :disabled="single" @click="handleUpdate"
+          v-hasPermi="['visa:order:edit']">修改</el-button>
       </el-col>
       <el-col :span="1.5">
-        <el-button type="danger" plain icon="el-icon-delete" size="mini" :disabled="multiple" @click="handleDelete" v-hasPermi="['visa:order:remove']">删除</el-button>
+        <el-button type="danger" plain icon="el-icon-delete" size="mini" :disabled="multiple" @click="handleDelete"
+          v-hasPermi="['visa:order:remove']">删除</el-button>
       </el-col>
       <el-col :span="1.5">
-        <el-button type="warning" plain icon="el-icon-download" size="mini" @click="handleExport" v-hasPermi="['visa:order:export']">导出</el-button>
+        <el-button type="warning" plain icon="el-icon-download" size="mini" @click="handleExport"
+          v-hasPermi="['visa:order:export']">导出</el-button>
       </el-col>
       <right-toolbar :showSearch.sync="showSearch" @queryTable="getList"></right-toolbar>
     </el-row>
@@ -49,9 +53,7 @@
     <el-table v-loading="loading" :data="orderList" @selection-change="handleSelectionChange">
       <el-table-column type="selection" width="55" align="center" />
       <el-table-column label="订单ID" align="center" prop="id" width="80" />
-      <el-table-column label="订单编号" align="center" prop="orderNo" min-width="150" />
-      
-      <!-- 显示名称替换ID -->
+      <el-table-column label="订单编号" align="center" prop="orderNo" min-width="200" />
       <el-table-column label="客户名称" align="center" prop="customerId" min-width="120">
         <template slot-scope="scope">
           <span>{{ getCustomerName(scope.row.customerId) }}</span>
@@ -62,103 +64,128 @@
           <span>{{ getProductName(scope.row.productId) }}</span>
         </template>
       </el-table-column>
-      
+
       <el-table-column label="订单数量" align="center" prop="quantity" width="80" />
-      
+      <el-table-column label="申请人" align="center">
+        <template slot-scope="scope">
+          <el-popover placement="right" width="300" trigger="hover">
+            <el-table :data="scope.row.applicantList" size="mini">
+              <el-table-column property="name" label="姓名"></el-table-column>
+              <el-table-column property="passportNo" label="护照号" width="100"></el-table-column>
+              <el-table-column property="idCard" label="身份证号" width="150"></el-table-column>
+            </el-table>
+            <el-button slot="reference" type="text">{{ getFirstApplicantName(scope.row) }}</el-button>
+          </el-popover>
+        </template>
+      </el-table-column>
+
       <!-- JSON 快照查看方案 -->
       <el-table-column label="产品快照" align="center" prop="productSnapshot" width="100">
         <template slot-scope="scope">
-          <el-button size="mini" type="text" icon="el-icon-view" @click="handleViewSnapshot(scope.row.productSnapshot, '产品快照')">查看</el-button>
+          <el-button size="mini" type="text" icon="el-icon-view"
+            @click="handleViewSnapshot(scope.row.productSnapshot, '产品快照')">查看</el-button>
         </template>
       </el-table-column>
-      
+
       <el-table-column label="总金额" align="center" prop="totalAmount" width="100" />
-      
+
       <!-- 订单状态 9级字典转换 -->
       <el-table-column label="订单状态" align="center" prop="status" width="150">
         <template slot-scope="scope">
           <el-tag :type="getStatusTagType(scope.row.status)">{{ getStatusName(scope.row.status) }}</el-tag>
         </template>
       </el-table-column>
-      
-      <el-table-column label="支付宝流水号" align="center" prop="alipayNo" min-width="150" :show-overflow-tooltip="true" />
-      <el-table-column label="支付时间" align="center" prop="payTime" width="120">
+
+      <el-table-column label="流水号" align="center" prop="alipayNo" min-width="250" :show-overflow-tooltip="true" />
+      <el-table-column label="支付时间" align="center" prop="payTime" width="180">
         <template slot-scope="scope">
-          <span>{{ parseTime(scope.row.payTime, '{y}-{m}-{d}') }}</span>
+          <span>{{ parseTime(scope.row.payTime, '{y}-{m}-{d} {h}:{i}:{s}') }}</span>
         </template>
       </el-table-column>
-      
+
       <!-- 复杂的 JSON 材料查看方案 -->
-      <el-table-column label="动态材料" align="center" prop="submittedMaterials" width="100">
+      <el-table-column label="签证材料" align="center" prop="submittedMaterials" width="100">
         <template slot-scope="scope">
-          <el-button size="mini" type="text" icon="el-icon-folder-opened" @click="handleViewMaterials(scope.row.submittedMaterials)">查看配置</el-button>
+          <el-button size="mini" type="text" icon="el-icon-folder-opened"
+            @click="handleViewMaterials(scope.row.submittedMaterials)">查看配置</el-button>
         </template>
       </el-table-column>
-      
-      <el-table-column label="审核备注" align="center" prop="auditRemark" :show-overflow-tooltip="true" />
+
+      <el-table-column label="审核反馈" align="center" width="120">
+        <template slot-scope="scope">
+          <div v-if="scope.row.auditRemark">
+            <el-button size="mini" type="text" icon="el-icon-chat-line-round"
+              @click="handleViewAuditRecords(scope.row.auditRemark)">查看(已存)</el-button>
+          </div>
+          <span v-else class="text-muted">暂无备注</span>
+        </template>
+      </el-table-column>
       <el-table-column label="面试预约时间" align="center" prop="interviewTime" width="120">
         <template slot-scope="scope">
           <span>{{ parseTime(scope.row.interviewTime, '{y}-{m}-{d}') }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="面试地点" align="center" prop="interviewLocation" />
-      
+
       <!-- 文件直接预览组件化 -->
       <el-table-column label="面试预约单" align="center" prop="interviewFile" width="120">
         <template slot-scope="scope">
           <div v-if="scope.row.interviewFile">
-            <el-image 
-              v-if="isImage(scope.row.interviewFile)"
-              style="width: 40px; height: 40px; border-radius: 4px;"
-              :src="resolveUrl(scope.row.interviewFile)"
-              :preview-src-list="[resolveUrl(scope.row.interviewFile)]">
+            <el-image v-if="isImage(scope.row.interviewFile)" style="width: 40px; height: 40px; border-radius: 4px;"
+              :src="resolveUrl(scope.row.interviewFile)" :preview-src-list="[resolveUrl(scope.row.interviewFile)]">
             </el-image>
-            <el-link v-else type="primary" :underline="false" target="_blank" :href="resolveUrl(scope.row.interviewFile)">
+            <el-link v-else type="primary" :underline="false" target="_blank"
+              :href="resolveUrl(scope.row.interviewFile)">
               <i class="el-icon-document"></i> 预览下载
             </el-link>
           </div>
           <span v-else>-</span>
         </template>
       </el-table-column>
-      
+
       <!-- 面试反馈状态映射 -->
       <el-table-column label="面试反馈" align="center" prop="interviewFeedback">
         <template slot-scope="scope">
-          <el-tag v-if="scope.row.interviewFeedback !== null && scope.row.interviewFeedback !== ''" :type="getInterviewFeedbackType(scope.row.interviewFeedback)">
+          <el-tag v-if="scope.row.interviewFeedback !== null && scope.row.interviewFeedback !== ''"
+            :type="getInterviewFeedbackType(scope.row.interviewFeedback)">
             {{ getInterviewFeedbackName(scope.row.interviewFeedback) }}
           </el-tag>
           <span v-else>-</span>
         </template>
       </el-table-column>
-      
+
       <!-- 最终签证结果状态映射 -->
       <el-table-column label="签证结果" align="center" prop="visaResult">
         <template slot-scope="scope">
-          <el-tag v-if="scope.row.visaResult !== null && scope.row.visaResult !== ''" effect="dark" :type="scope.row.visaResult == 1 ? 'success' : 'danger'">
+          <el-tag v-if="scope.row.visaResult !== null && scope.row.visaResult !== ''" effect="dark"
+            :type="scope.row.visaResult == 1 ? 'success' : 'danger'">
             {{ scope.row.visaResult == 1 ? '出签' : (scope.row.visaResult == 2 ? '拒签' : scope.row.visaResult) }}
           </el-tag>
           <span v-else>-</span>
         </template>
       </el-table-column>
-      
+
       <el-table-column label="快递单号" align="center" prop="trackingNumber" />
-      
+
       <!-- 地址 JSON 快照查看 -->
       <el-table-column label="收货地址" align="center" prop="mailingAddress" width="100">
         <template slot-scope="scope">
-          <el-button size="mini" type="text" icon="el-icon-map-location" @click="handleViewSnapshot(scope.row.mailingAddress, '收货地址详情')">查看地址</el-button>
+          <el-button size="mini" type="text" icon="el-icon-map-location"
+            @click="handleViewSnapshot(scope.row.mailingAddress, '收货地址详情')">查看地址</el-button>
         </template>
       </el-table-column>
-      
+
       <el-table-column label="操作" align="center" class-name="small-padding fixed-width" width="150" fixed="right">
         <template slot-scope="scope">
-          <el-button size="mini" type="text" icon="el-icon-edit" @click="handleUpdate(scope.row)" v-hasPermi="['visa:order:edit']">修改</el-button>
-          <el-button size="mini" type="text" icon="el-icon-delete" @click="handleDelete(scope.row)" v-hasPermi="['visa:order:remove']">删除</el-button>
+          <el-button size="mini" type="text" icon="el-icon-edit" @click="handleUpdate(scope.row)"
+            v-hasPermi="['visa:order:edit']">修改</el-button>
+          <el-button size="mini" type="text" icon="el-icon-delete" @click="handleDelete(scope.row)"
+            v-hasPermi="['visa:order:remove']">删除</el-button>
         </template>
       </el-table-column>
     </el-table>
 
-    <pagination v-show="total > 0" :total="total" :page.sync="queryParams.pageNum" :limit.sync="queryParams.pageSize" @pagination="getList" />
+    <pagination v-show="total > 0" :total="total" :page.sync="queryParams.pageNum" :limit.sync="queryParams.pageSize"
+      @pagination="getList" />
 
     <!-- 添加或修改签证订单对话框 (不变) -->
     <el-dialog :title="title" :visible.sync="open" width="600px" append-to-body>
@@ -186,7 +213,8 @@
           <el-input v-model="form.alipayNo" placeholder="请输入支付宝流水号" />
         </el-form-item>
         <el-form-item label="支付时间" prop="payTime">
-          <el-date-picker clearable v-model="form.payTime" type="date" value-format="yyyy-MM-dd" placeholder="请选择时间"></el-date-picker>
+          <el-date-picker clearable v-model="form.payTime" type="datetime" value-format="yyyy-MM-dd HH:mm:ss"
+            placeholder="请选择时间"></el-date-picker>
         </el-form-item>
         <el-form-item label="用户动态材料" prop="submittedMaterials">
           <el-input v-model="form.submittedMaterials" type="textarea" placeholder="请输入内容(JSON)" />
@@ -195,7 +223,8 @@
           <el-input v-model="form.auditRemark" type="textarea" placeholder="请输入驳回原因/备注" />
         </el-form-item>
         <el-form-item label="预约面试时间" prop="interviewTime">
-          <el-date-picker clearable v-model="form.interviewTime" type="date" value-format="yyyy-MM-dd" placeholder="请选择面试时间"></el-date-picker>
+          <el-date-picker clearable v-model="form.interviewTime" type="date" value-format="yyyy-MM-dd"
+            placeholder="请选择面试时间"></el-date-picker>
         </el-form-item>
         <el-form-item label="面试地点" prop="interviewLocation">
           <el-input v-model="form.interviewLocation" placeholder="请输入面试地点" />
@@ -235,14 +264,12 @@
     <!-- 1. 通用快照详情（对象） -->
     <el-dialog :title="snapshotTitle" :visible.sync="snapshotOpen" width="500px" append-to-body>
       <el-descriptions border :column="1" size="small">
-        <el-descriptions-item v-for="(value, key) in currentSnapshotObj" :key="key" :label="key">
+        <el-descriptions-item v-for="(value, key) in currentSnapshotObj" :key="key"
+          :label="snapshotLabelMap[key] || addressLabelMap[key] || key">
           <!-- 动态支持快照内的图像或文件URL -->
           <div v-if="isValidUrl(String(value))">
-            <el-image 
-              v-if="isImage(String(value))"
-              style="width: 60px; height: 60px; border-radius: 4px;"
-              :src="resolveUrl(String(value))"
-              :preview-src-list="[resolveUrl(String(value))]">
+            <el-image v-if="isImage(String(value))" style="width: 60px; height: 60px; border-radius: 4px;"
+              :src="resolveUrl(String(value))" :preview-src-list="[resolveUrl(String(value))]">
               <div slot="error" class="image-slot"><i class="el-icon-picture-outline"></i></div>
             </el-image>
             <el-link v-else type="primary" target="_blank" :href="resolveUrl(String(value))">
@@ -263,28 +290,27 @@
       <el-table :data="currentMaterialsArray" border stripe>
         <el-table-column type="index" label="序号" width="50" align="center"></el-table-column>
         <el-table-column label="材料项(Key/Name)" align="center">
-           <template slot-scope="scope">
-              {{ scope.row.key || scope.row.name || '材料明细' }}
-           </template>
+          <template slot-scope="scope">
+            {{ scope.row.key || scope.row.name || '材料明细' }}
+          </template>
         </el-table-column>
         <el-table-column label="上传内容预览" align="center">
           <template slot-scope="scope">
             <div v-if="scope.row.url || scope.row.value">
-               <!-- 当存在 URL 时作为文件 -->
-               <div v-if="isValidUrl(scope.row.url || scope.row.value)">
-                  <el-image 
-                    v-if="isImage(scope.row.url || scope.row.value)"
-                    style="width: 50px; height: 50px; border-radius: 4px;"
-                    :src="resolveUrl(scope.row.url || scope.row.value)"
-                    :preview-src-list="[resolveUrl(scope.row.url || scope.row.value)]">
-                    <div slot="error" class="image-slot"><i class="el-icon-picture-outline"></i></div>
-                  </el-image>
-                  <el-link v-else type="primary" target="_blank" :href="resolveUrl(scope.row.url || scope.row.value)">
-                    <i class="el-icon-document"></i> 查看附件
-                  </el-link>
-               </div>
-               <!-- 否则显示纯文本内容 -->
-               <span v-else>{{ scope.row.value || scope.row.url }}</span>
+              <!-- 当存在 URL 时作为文件 -->
+              <div v-if="isValidUrl(scope.row.url || scope.row.value)">
+                <el-image v-if="isImage(scope.row.url || scope.row.value)"
+                  style="width: 50px; height: 50px; border-radius: 4px;"
+                  :src="resolveUrl(scope.row.url || scope.row.value)"
+                  :preview-src-list="[resolveUrl(scope.row.url || scope.row.value)]">
+                  <div slot="error" class="image-slot"><i class="el-icon-picture-outline"></i></div>
+                </el-image>
+                <el-link v-else type="primary" target="_blank" :href="resolveUrl(scope.row.url || scope.row.value)">
+                  <i class="el-icon-document"></i> 查看附件
+                </el-link>
+              </div>
+              <!-- 否则显示纯文本内容 -->
+              <span v-else>{{ scope.row.value || scope.row.url }}</span>
             </div>
             <span v-else class="text-muted">未上传</span>
           </template>
@@ -293,12 +319,43 @@
       <div slot="footer"><el-button @click="materialsOpen = false">关闭</el-button></div>
     </el-dialog>
 
+    <!-- 审核记录详情弹窗 -->
+    <el-dialog title="审核备注历史记录" :visible.sync="auditOpen" width="600px" append-to-body>
+      <el-table :data="currentAuditRecords" border stripe size="medium">
+        <el-table-column type="index" label="轮次" width="60" align="center" />
+        <el-table-column label="备注说明" prop="text">
+          <template slot-scope="scope">
+            <span style="white-space: pre-wrap;">{{ scope.row.text || '（未填写文字说明）' }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="附件/凭证" align="center" width="150">
+          <template slot-scope="scope">
+            <div v-if="scope.row.file">
+              <!-- 图片预览 -->
+              <el-image v-if="isImage(scope.row.file)" style="width: 60px; height: 60px; border-radius: 4px;"
+                :src="resolveUrl(scope.row.file)" :preview-src-list="[resolveUrl(scope.row.file)]">
+              </el-image>
+              <!-- 非图片文件预览 -->
+              <el-link v-else type="primary" target="_blank" :href="resolveUrl(scope.row.file)">
+                <i class="el-icon-document"></i> 查看附件
+              </el-link>
+            </div>
+            <span v-else class="text-muted">-</span>
+          </template>
+        </el-table-column>
+      </el-table>
+      <div slot="footer">
+        <el-button @click="auditOpen = false">关 闭</el-button>
+      </div>
+    </el-dialog>
+
+
+
   </div>
 </template>
 
 <script>
 import { addOrder, delOrder, getOrder, listOrder, updateOrder } from "@/api/visa/order";
-// 引入客户和产品 API （假设路径，如有差异请调整）
 import { listCustomer } from "@/api/visa/customer";
 import { listProduct } from "@/api/visa/product";
 
@@ -316,18 +373,21 @@ export default {
       orderList: [],
       title: "",
       open: false,
-      
+
       // ====== 新增：外键相关缓存数据 ======
       customerList: [],
       productList: [],
-      
+
       // ====== 新增：弹窗控制 ======
       snapshotOpen: false,
       snapshotTitle: '详情',
       currentSnapshotObj: {},
-      
+
       materialsOpen: false,
       currentMaterialsArray: [],
+
+      auditOpen: false,          // 审核弹窗开关
+      currentAuditRecords: [],   // 存储解析后的审核数组
 
       queryParams: {
         pageNum: 1,
@@ -345,7 +405,17 @@ export default {
         customerId: [{ required: true, message: "客户ID不能为空", trigger: "blur" }],
         productId: [{ required: true, message: "产品ID不能为空", trigger: "blur" }],
         totalAmount: [{ required: true, message: "订单总金额不能为空", trigger: "blur" }],
-      }
+      },
+      snapshotLabelMap: {
+        'image': '产品图片',
+        'title': '签证名称',
+        'unitPrice': '单价'
+      },
+      addressLabelMap: {
+        'contactName': '收件人',
+        'contactPhone': '联系电话',
+        'address': '详细地址'
+      },
     }
   },
   created() {
@@ -358,14 +428,14 @@ export default {
       // 拉取客户全量或大分页数据
       listCustomer({ pageSize: 5000 }).then(res => {
         this.customerList = res.rows || [];
-      }).catch(() => {});
-      
+      }).catch(() => { });
+
       // 拉取产品全量
       listProduct({ pageSize: 5000 }).then(res => {
         this.productList = res.rows || [];
-      }).catch(() => {});
+      }).catch(() => { });
     },
-    
+
     /** 解析完整路径，适配 RuoYi 的 /profile 路径拦截 */
     resolveUrl(url) {
       if (!url) return '';
@@ -379,20 +449,21 @@ export default {
       return baseUrl + url;
     },
 
-    /** 新增功能：根据 ID 提取客户名 */
+    /** 根据 ID 提取客户名 */
     getCustomerName(id) {
       if (!id) return '-';
       const cust = this.customerList.find(c => c.id == id);
-      return cust ? (cust.nickName || cust.userName || cust.name || id) : id;
+      // 这里的 realName 对应数据库的 real_name
+      return cust ? (cust.realName || cust.nickName || cust.userName || id) : id;
     },
-    
+
     /** 新增功能：根据 ID 提取产品名 */
     getProductName(id) {
       if (!id) return '-';
       const prod = this.productList.find(p => p.id == id);
       return prod ? (prod.title || prod.productName || prod.name || id) : id;
     },
-    
+
     /** 新增功能：判定是否是图片或URL */
     isImage(url) {
       if (!url) return false;
@@ -401,9 +472,9 @@ export default {
     },
     isValidUrl(string) {
       try { return Boolean(new URL(string)); }
-      catch(e){ return string.startsWith('http') || string.startsWith('/'); }
+      catch (e) { return string.startsWith('http') || string.startsWith('/'); }
     },
-    
+
     /** 新增功能：9 级状态解析名称 */
     getStatusName(status) {
       const map = {
@@ -444,7 +515,7 @@ export default {
     handleViewSnapshot(jsonStr, title) {
       this.snapshotTitle = title || '详情';
       try {
-        if(jsonStr) {
+        if (jsonStr) {
           this.currentSnapshotObj = JSON.parse(jsonStr);
         } else {
           this.currentSnapshotObj = {};
@@ -455,21 +526,51 @@ export default {
       }
       this.snapshotOpen = true;
     },
-    
+
     /** 解码 JSON 并在弹窗预览（数组类：动态材料） */
     handleViewMaterials(jsonStr) {
       try {
         let parsed = JSON.parse(jsonStr);
         // 如果解析出来是对象将转成数组格式方便展示
-        if(parsed && !Array.isArray(parsed) && typeof parsed === 'object') {
-           parsed = Object.keys(parsed).map(k => ({ key: k, value: parsed[k] }));
+        if (parsed && !Array.isArray(parsed) && typeof parsed === 'object') {
+          parsed = Object.keys(parsed).map(k => ({ key: k, value: parsed[k] }));
         }
         this.currentMaterialsArray = Array.isArray(parsed) ? parsed : [];
       } catch (e) {
-        this.currentMaterialsArray = typeof jsonStr ==='string' && jsonStr.trim() !== '' ? [{key: '源数据', value: jsonStr}] : [];
+        this.currentMaterialsArray = typeof jsonStr === 'string' && jsonStr.trim() !== '' ? [{ key: '源数据', value: jsonStr }] : [];
       }
       this.materialsOpen = true;
     },
+
+    /** 查看审核备注记录 */
+    handleViewAuditRecords(jsonStr) {
+      if (!jsonStr) {
+        this.currentAuditRecords = [];
+      } else {
+        try {
+          const parsed = JSON.parse(jsonStr);
+          // 如果解析出来是数组直接赋值，如果是单个对象转为数组
+          this.currentAuditRecords = Array.isArray(parsed) ? parsed : [parsed];
+        } catch (e) {
+          // 兼容旧数据：如果不是JSON格式（纯文本），则手动构造
+          this.currentAuditRecords = [{ text: jsonStr, file: '' }];
+        }
+      }
+      this.auditOpen = true;
+    },
+
+    /** 获取订单中的第一位申请人姓名用于列表展示 */
+    getFirstApplicantName(row) {
+      // 逻辑：如果有关联的申请人列表且长度大于0，返回第一个人的名字
+      if (row.applicantList && row.applicantList.length > 0) {
+        // 如果人多，可以显示 "张三 等"
+        const name = row.applicantList[0].name;
+        return row.applicantList.length > 1 ? `${name} 等` : name;
+      }
+      // 如果没有申请人信息，返回占位符
+      return "未填写";
+    },
+
 
     /** 基本增删改查保持不变 */
     getList() {
@@ -518,9 +619,9 @@ export default {
       getOrder(id).then(response => {
         this.form = response.data
         // 如果后端传回的反馈结果是数字，转成String避免select匹配问题
-        if(this.form.interviewFeedback != null) this.form.interviewFeedback = String(this.form.interviewFeedback)
-        if(this.form.visaResult != null) this.form.visaResult = String(this.form.visaResult)
-        
+        if (this.form.interviewFeedback != null) this.form.interviewFeedback = String(this.form.interviewFeedback)
+        if (this.form.visaResult != null) this.form.visaResult = String(this.form.visaResult)
+
         this.open = true
         this.title = "修改签证订单"
       })
@@ -574,4 +675,3 @@ export default {
   color: #909399;
 }
 </style>
-
