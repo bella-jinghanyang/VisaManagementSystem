@@ -10,11 +10,7 @@
       <!-- 搜索订单功能 -->
       <div class="header-right">
         <div class="search-wrapper">
-          <input
-            v-model="searchKey"
-            placeholder="搜索订单号或签证名称..."
-            @input="handleSearch"
-          />
+          <input v-model="searchKey" placeholder="搜索订单号或签证名称..." @input="handleSearch" />
           <i class="el-icon-search"></i>
         </div>
       </div>
@@ -22,12 +18,8 @@
 
     <!-- 2. 分类切换 -->
     <div class="order-tabs">
-      <div
-        v-for="tab in tabOptions"
-        :key="tab.key"
-        :class="['tab-item', { active: activeTab === tab.key }]"
-        @click="handleTabChange(tab.key)"
-      >
+      <div v-for="tab in tabOptions" :key="tab.key" :class="['tab-item', { active: activeTab === tab.key }]"
+        @click="handleTabChange(tab.key)">
         {{ tab.label }}
         <!-- 气泡数字：显示该状态下的订单数量 -->
         <span class="tab-count" v-if="getTabCount(tab.key) > 0">
@@ -44,12 +36,8 @@
     <!-- 4. 订单列表 -->
     <div v-else-if="filteredOrders.length > 0" class="order-list">
 
-      <apple-card
-        v-for="order in filteredOrders"
-        :key="order.id"
-        class="compact-order-card mb-20"
-        @click.native="openDetailDrawer(order)"
-      >
+      <apple-card v-for="order in filteredOrders" :key="order.id" class="compact-order-card mb-20"
+        @click.native="openDetailDrawer(order)">
         <div class="card-inner">
           <!-- 左侧：封面图 -->
           <div class="img-side">
@@ -88,15 +76,9 @@
       </apple-card>
     </div>
 
-    <!-- ★★★ 核心重构：侧边沉浸式详情抽屉 ★★★ -->
-    <el-drawer
-      title="订单办理详情"
-      :visible.sync="detailDrawerOpen"
-      direction="rtl"
-      size="450px"
-      custom-class="apple-drawer"
-      :append-to-body="true"
-    >
+    <!-- 侧边沉浸式详情抽屉 -->
+    <el-drawer title="订单办理详情" :visible.sync="detailDrawerOpen" direction="rtl" size="450px" custom-class="apple-drawer"
+      :append-to-body="true">
       <div class="drawer-content" v-if="selectedOrder.id">
         <!-- 1. 顶部状态横条 -->
         <div class="drawer-header-status" :class="'bg-status-' + selectedOrder.status">
@@ -121,11 +103,42 @@
           </div>
 
           <!-- 4. 办理进度明细区 (状态4及以上显示) -->
-          <div v-if="selectedOrder.status >= 4 && selectedOrder.visaResult" class="inner-card result-card">
+          <div v-if="selectedOrder.status >= 4  && selectedOrder.visaResult" class="inner-card result-card">
             <div class="card-label">签证办理结果</div>
             <div v-for="(res, idx) in parseJson(selectedOrder.visaResult)" :key="idx" class="drawer-res-item">
-              <span class="p-name">申请人 {{ idx + 1 }}: </span>
+              <span class="p-name" style="font-weight: bold; color: #1d1d1f;">
+                {{ (selectedOrder.applicantList && selectedOrder.applicantList[idx]) ?
+            selectedOrder.applicantList[idx].name : '申请人 ' + (idx + 1) }}:
+              </span>
               <el-tag :type="getResultTagType(res.status)" size="mini" round>{{ getResultText(res.status) }}</el-tag>
+              <!-- ★★★ 核心新增：如果这个人状态是 Check (3)，显示补件区 ★★★ -->
+              <div v-if="res.status == 3" class="check-box"
+                style="margin-top: 10px; padding: 12px; background: #FFFBE6; border-radius: 10px; border: 1px solid #FFE58F;">
+                <p style="font-size: 12px; color: #856404; margin-bottom: 8px;">
+                  <i class="el-icon-warning"></i> 需补交电子材料，请查看指引：
+                </p>
+
+                <div style="display: flex; gap: 10px;">
+                  <!-- 下载管理员发的 Check 通知单 -->
+                  <el-button v-if="res.fileUrl" type="warning" size="mini" plain round icon="el-icon-download"
+                    @click="downloadTemplate(res.fileUrl)">
+                    查看补件指引
+                  </el-button>
+
+                  <!-- 开启补件上传弹窗 -->
+                  <el-button type="primary" size="mini" round icon="el-icon-upload"
+                    @click="handleUploadSupplementary(selectedOrder, idx)">
+                    上传补充材料
+                  </el-button>
+                </div>
+
+                <!-- 显示已上传的文件数 -->
+                <div v-if="getSuppFileList(selectedOrder, idx).length > 0"
+                  style="margin-top: 8px; font-size: 11px; color: #67C23A;">
+                  已成功补传 {{ getSuppFileList(selectedOrder, idx).length }} 份文件
+                </div>
+              </div>
+
               <div class="p-memo" v-if="res.memo">{{ res.memo }}</div>
             </div>
 
@@ -136,30 +149,59 @@
           </div>
 
           <!-- 5. 面试预约决策区 (状态7显示) -->
-          <div v-if="selectedOrder.status === 7 && selectedOrder.interviewSlots && !selectedOrder.interviewTime" class="inner-card slot-card">
+          <div v-if="selectedOrder.status === 7 && selectedOrder.interviewSlots && !selectedOrder.interviewTime"
+            class="inner-card slot-card">
             <div class="card-label">选择面试时间</div>
             <div class="drawer-slots">
-              <div
-                v-for="time in parseJson(selectedOrder.interviewSlots)"
-                :key="time"
-                class="drawer-time-capsule"
-                @click="handleConfirmTime(selectedOrder, time)"
-              >
+              <div v-for="time in parseJson(selectedOrder.interviewSlots)" :key="time" class="drawer-time-capsule"
+                @click="handleConfirmTime(selectedOrder, time)">
                 {{ time }}
               </div>
             </div>
+
+            <div style="text-align: center; margin-top: 15px;">
+              <el-button type="text" style="color: #909399; font-size: 13px;" @click="openRejectSlotsDialog">
+                时间都不方便？点击反馈要求
+              </el-button>
+            </div>
           </div>
+
+          <!-- 场景 B：状态 7 且 已选时间，等待凭证 -->
+            <div v-if="selectedOrder.status === 7 && selectedOrder.interviewTime" class="inner-card result-card"
+              style="border: 1px solid #BF5AF2;">
+              <div class="card-label" style="color: #BF5AF2;"><i class="el-icon-loading"></i> 预约确认中</div>
+              <p style="font-size: 14px;">您已选择：<strong>{{ selectedOrder.interviewTime }}</strong></p>
+              <p style="font-size: 12px; color: #999; margin-top: 10px;">
+                我们的专业顾问正在使馆系统为您锁定名额，稍后将为您下发正式预约单。
+              </p>
+            </div>
+
+            <!-- 场景 C：状态 8（管理员传完 PDF 后） -->
+            <div v-if="selectedOrder.status === 8" class="inner-card interview-info-card">
+              <div class="card-label">面试预约成功</div>
+              <p><strong>面试时间：</strong>{{ selectedOrder.interviewTime }}</p>
+              <el-button type="primary" size="mini" @click="downloadTemplate(selectedOrder.interviewFile)">
+                下载官方预约确认单
+              </el-button>
+            </div>
+
+          <!-- 驳回留言弹窗 -->
+          <el-dialog title="反馈面试时间要求" :visible.sync="rejectSlotOpen" width="400px" append-to-body>
+            <p style="font-size: 13px; color: #909399; margin-bottom: 10px;">请告知您方便的时间范围（例如：希望在下周五下午）：</p>
+            <el-input type="textarea" v-model="slotRejectRemark" :rows="3" placeholder="请输入您的要求..."></el-input>
+            <div slot="footer">
+              <el-button @click="rejectSlotOpen = false" size="small">取消</el-button>
+              <el-button type="primary" @click="submitSlotReject" size="small">提交反馈</el-button>
+            </div>
+          </el-dialog>
 
           <!-- 6. 面试正式通知区 (状态8显示) -->
           <div v-if="selectedOrder.status === 8" class="inner-card interview-info-card">
             <div class="card-label">面试通知</div>
             <p><strong>时间：</strong>{{ selectedOrder.interviewTime }}</p>
             <p><strong>地点：</strong>{{ selectedOrder.interviewLocation || '请见预约单' }}</p>
-            <el-button
-              v-if="selectedOrder.interviewFile"
-              type="primary" size="mini" plain icon="el-icon-download"
-              @click="downloadTemplate(selectedOrder.interviewFile)"
-            >下载预约单</el-button>
+            <el-button v-if="selectedOrder.interviewFile" type="primary" size="mini" plain icon="el-icon-download"
+              @click="downloadTemplate(selectedOrder.interviewFile)">下载预约单</el-button>
           </div>
 
           <!-- 7. 评价与追评展示区 -->
@@ -172,33 +214,61 @@
             </div>
           </div>
 
-         <!-- 状态 9 且 用户还没填单号时显示 -->
-          <div v-if="selectedOrder.status === 9" class="inner-card shipping-guide-card">
-            <div class="card-label"><i class="el-icon-truck"></i> 寄送原件指引</div>
-            <div class="agency-address">
-              <div class="address-item"><strong>收货人：</strong>全球通签证中心-张专员</div>
-              <div class="address-item"><strong>联系电话：</strong>138-0000-0000</div>
-              <div class="address-item"><strong>寄送地址：</strong>北京市朝阳区XX大厦1203室</div>
+          <!-- 状态 9 且 用户还没填单号时显示 -->
+          <!-- 状态 9（待寄送）或 状态 10（已寄出）均显示此卡片 -->
+          <div v-if="[9, 10].includes(selectedOrder.status)" class="inner-card shipping-guide-card">
+            <div class="card-label">
+              <i class="el-icon-truck"></i>
+              {{ selectedOrder.status === 9 ? '邮寄原件指引' : '邮寄进度确认' }}
             </div>
 
-            <el-divider></el-divider>
+            <!-- 情况 A：处于状态 9 - 引导用户寄送 -->
+            <template v-if="selectedOrder.status === 9">
+              <div class="agency-address"
+                style="background: rgba(106, 175, 230, 0.05); padding: 15px; border-radius: 12px; margin-bottom: 20px;">
+                <p style="font-size: 13px; color: #909399; margin-bottom: 10px;">电子材料初审已通过，请将护照原件寄往：</p>
+                <div class="address-item" style="margin-bottom:5px"><strong>收货人：</strong>{{ agencyInfo.name }}</div>
+                <div class="address-item" style="margin-bottom:5px"><strong>联系电话：</strong>{{ agencyInfo.phone }}</div>
+                <div class="address-item" style="margin-bottom:10px"><strong>寄送地址：</strong>{{ agencyInfo.address }}
+                </div>
+                <el-button type="text" size="mini" icon="el-icon-document-copy"
+                  @click="copyAgencyAddress">复制完整地址</el-button>
+              </div>
 
-            <!-- 填写单号区 -->
-            <div class="user-express-box">
-              <p class="input-tip">寄出后请填写您的快递单号：</p>
-               <el-input v-model="myExpressNo" placeholder="请输入顺丰/EMS单号" size="small" @click.native.stop>
-                <el-button slot="append" @click.stop="submitUserExpress">提交单号</el-button>
-              </el-input>
-            </div>
-          </div>
+              <el-divider></el-divider>
 
-          <!-- 已经填了单号，显示状态 -->
-          <div v-if="selectedOrder.expressToAgency" class="inner-card">
-            <div class="card-label">我的寄送物流</div>
-            <p style="font-size: 14px; color: #333">
-              单号：{{ selectedOrder.expressToAgency }}
-              <el-tag size="mini" type="info" style="margin-left: 10px">运送中</el-tag>
-            </p>
+              <div class="user-express-box">
+                <p class="input-tip" style="font-size: 13px; color: #606266; margin-bottom: 12px;">寄出后请在此填写快递单号：</p>
+                <el-select v-model="mailForm.company" placeholder="选择快递公司" size="small"
+                  style="width: 100%; margin-bottom: 10px;">
+                  <el-option label="顺丰速运" value="顺丰" />
+                  <el-option label="EMS" value="EMS" />
+                  <el-option label="中通快递" value="中通" />
+                  <el-option label="圆通速递" value="圆通" />
+                  <el-option label="韵达快递" value="韵达" />
+                </el-select>
+                <el-input v-model="mailForm.no" placeholder="请输入快递单号" size="small">
+                  <el-button slot="append" type="primary" @click="submitUserExpress" :loading="loading">确认提交</el-button>
+                </el-input>
+              </div>
+            </template>
+
+            <!-- 情况 B：处于状态 10 - 显示已寄出状态 -->
+            <template v-else-if="selectedOrder.status === 10">
+              <div class="sent-status-box" style="text-align: center; padding: 20px 10px;">
+                <i class="el-icon-circle-check" style="color: #67C23A; font-size: 48px;"></i>
+                <p style="margin-top: 15px; font-size: 16px; font-weight: bold; color: #67C23A;">原件已寄出，中介待签收</p>
+                <div
+                  style="margin-top: 15px; background: #f8fafc; padding: 12px; border-radius: 8px; text-align: left;">
+                  <p style="font-size: 13px; color: #606266; margin: 0;">
+                    <strong>快递信息：</strong>{{ selectedOrder.expressToAgency || mailForm.no }}
+                  </p>
+                  <p style="font-size: 12px; color: #999; margin-top: 5px;">
+                    中介签收后，订单将自动进入使馆办理环节。
+                  </p>
+                </div>
+              </div>
+            </template>
           </div>
 
         </div>
@@ -206,22 +276,70 @@
         <!-- 8. 底部吸底主动作按钮 -->
         <div class="drawer-footer">
           <!-- 状态 0: 去支付 -->
-          <el-button v-if="selectedOrder.status === 0" type="primary" class="drawer-main-btn" @click="handlePay(selectedOrder)">立即支付</el-button>
+          <el-button v-if="selectedOrder.status === 0" type="primary" class="drawer-main-btn"
+            @click="handlePay(selectedOrder)">立即支付</el-button>
 
           <!-- 状态 1/3: 去传资料 -->
-          <el-button v-if="[1, 3].includes(selectedOrder.status)" type="primary" class="drawer-main-btn" @click="handleUpload(selectedOrder)">
+          <el-button v-if="[1, 3].includes(selectedOrder.status)" type="primary" class="drawer-main-btn"
+            @click="handleUpload(selectedOrder)">
             {{ selectedOrder.status === 1 ? '上传申请材料' : '修改申请材料' }}
           </el-button>
 
           <!-- 状态 8: 反馈面试结果 -->
-          <el-button v-if="selectedOrder.status === 8" type="success" class="drawer-main-btn" @click="handleInterviewFinish(selectedOrder)">我已面试完</el-button>
+          <el-button v-if="selectedOrder.status === 8" type="success" class="drawer-main-btn"
+            @click="handleInterviewFinish(selectedOrder)">我已面试完</el-button>
 
           <!-- 状态 5: 确认收货 -->
-          <el-button v-if="selectedOrder.status === 5" type="primary" class="drawer-main-btn" @click="handleConfirmReceipt(selectedOrder)">确认收到护照</el-button>
+          <!-- 找到抽屉内部逻辑，在状态4展示区下方，或者作为独立卡片 -->
+          <div v-if="selectedOrder.status === 5" class="inner-card result-card" style="border: 2px solid #34C759;">
+            <div class="card-label" style="color: #34C759;"><i class="el-icon-success"></i> 结果已出，正在返还</div>
+
+            <!-- 1. 获签凭证下载 (非常重要) -->
+            <div class="result-files-box"
+              style="background: #F0F9EB; padding: 12px; border-radius: 12px; margin-bottom: 15px;">
+              <p style="font-size: 13px; font-weight: bold; color: #67C23A; margin-bottom: 10px;">请查收电子获签凭证：</p>
+              <div v-for="(res, idx) in parseJson(selectedOrder.visaResult)" :key="idx" class="file-item"
+                style="margin-bottom: 5px;">
+                <span style="font-size: 13px; color: #333; min-width: 80px;">
+                  {{ (selectedOrder.applicantList && selectedOrder.applicantList[idx]) ?
+                    selectedOrder.applicantList[idx].name : '申请人 ' + (idx + 1) }}：
+                </span>
+
+                <el-button v-if="res.fileUrl" type="text" size="mini" icon="el-icon-download"
+                  @click="downloadTemplate(res.fileUrl)">
+                  点击预览/下载凭证
+                </el-button>
+                <span v-else style="font-size: 12px; color: #999;">(未上传电子版)</span>
+              </div>
+            </div>
+
+            <!-- 2. 寄回物流单号 -->
+            <div class="shipping-info-box" style="background: #f8fafc; padding: 12px; border-radius: 12px;">
+              <p style="font-size: 13px; font-weight: bold; color: #1d1d1f; margin-bottom: 8px;">
+                <i class="el-icon-truck"></i> 寄回物流信息
+              </p>
+              <div v-if="selectedOrder.trackingNumber">
+                <div style="font-size: 14px; color: #333; margin-bottom: 5px;">
+                  快递单号：<span style="color: #409EFF; font-weight: bold;">{{ selectedOrder.trackingNumber }}</span>
+                </div>
+                <p style="font-size: 11px; color: #999;">请留意顺丰/EMS推送，护照原件即将送达。</p>
+              </div>
+              <div v-else style="color: #FA8C16; font-size: 13px;">
+                管理员暂未录入物流单号，请稍后查看。
+              </div>
+            </div>
+
+            <el-button v-if="selectedOrder.status === 5" type="primary" class="drawer-main-btn"
+              @click="handleConfirmReceipt(selectedOrder)">确认收到护照</el-button>
+
+          </div>
 
           <!-- 状态 6: 评价/追评 -->
-          <el-button v-if="selectedOrder.status === 6 && selectedOrder.isCommented != 1" type="primary" class="drawer-main-btn" @click="handleOpenComment(selectedOrder)">评价服务</el-button>
-          <el-button v-if="selectedOrder.status === 6 && selectedOrder.isCommented == 1 && !selectedOrder.additionalContent" type="primary" plain class="drawer-main-btn" @click="handleOpenFollowUp(selectedOrder)">追加评价</el-button>
+          <el-button v-if="selectedOrder.status === 6 && selectedOrder.isCommented != 1" type="primary"
+            class="drawer-main-btn" @click="handleOpenComment(selectedOrder)">评价服务</el-button>
+          <el-button
+            v-if="selectedOrder.status === 6 && selectedOrder.isCommented == 1 && !selectedOrder.additionalContent"
+            type="primary" plain class="drawer-main-btn" @click="handleOpenFollowUp(selectedOrder)">追加评价</el-button>
 
           <div class="contact-support" @click="handleOpenChat(selectedOrder)">
             <i class="el-icon-chat-dot-round"></i> 联系签证顾问
@@ -274,7 +392,8 @@
 
         <!-- 上传组件 -->
         <el-upload class="supp-uploader" action="/api/common/upload" :headers="headers" :on-success="handleSuppSuccess"
-          :file-list="tempFileList" :on-remove="handleSuppRemove" :on-change="handleFileChange" :on-preview="handleSuppPreview" multiple list-type="text">
+          :file-list="tempFileList" :on-remove="handleSuppRemove" :on-change="handleFileChange"
+          :on-preview="handleSuppPreview" multiple list-type="text">
           <el-button size="small" type="primary" icon="el-icon-upload">点击选择文件</el-button>
         </el-upload>
       </div>
@@ -309,7 +428,7 @@
       </div>
     </el-dialog>
 
-   <!-- 追加评价弹窗 -->
+    <!-- 追加评价弹窗 -->
     <el-dialog title="追加评价" :visible.sync="followUpOpen" width="450px" append-to-body custom-class="apple-dialog">
       <p style="color: #909399; font-size: 13px; margin-bottom: 15px;">
         您可以补充更多关于办签细节的感受...
@@ -329,12 +448,12 @@
 import { addAdditionalComment, addComment } from '@/api/comment';
 import AppleCard from '@/components/AppleCard';
 import request from '@/utils/request';
-import { listMyOrders, getStripePayUrl } from '@/api/order'; 
+import { listMyOrders, getStripePayUrl } from '@/api/order';
 
 export default {
   name: 'UserOrder',
   components: { AppleCard },
-  data () {
+  data() {
     return {
       // --- 核心列表数据 ---
       loading: false,
@@ -357,13 +476,16 @@ export default {
         6: '已完成',
         7: '材料过审，待预约面试',
         8: '待面试',
-        9: '待寄送原件'
+        9: '待寄送原件',
+        10: '原件已寄出'
       },
 
       // --- 面试与反馈相关 ---
       feedbackOpen: false,
       feedbackList: [], // 存储多人的结果
       slipUrl: '', // 存凭证图
+      rejectSlotOpen: false,
+      slotRejectRemark: '',
 
       // --- 补充材料(Check)相关 ---
       tempFileList: [], // 临时存储本次上传的文件
@@ -386,7 +508,20 @@ export default {
         id: null, // 评价记录的ID
         content: ''
       },
-      myExpressNo: '',
+
+      // --- 寄送 ---
+      mailForm: {
+        company: 'SF', // 默认顺丰
+        no: '',
+        orderId: null,
+        orderNo: ''
+      },
+      // 中介收货地址（实际开发中可以从后端配置接口获取，毕设可以直接写死）
+      agencyInfo: {
+        name: '全球通签证中心-资料组',
+        phone: '010-88888888',
+        address: '北京市朝阳区世贸天阶A座1205室'
+      },
 
       // --- 筛选与搜索 ---
       activeTab: 'all',
@@ -406,16 +541,16 @@ export default {
 
     }
   },
-  created () {
+  created() {
     this.getList()
     this.checkStripeResult();
   },
-  beforeDestroy () {
+  beforeDestroy() {
     this.$bus.$off('order-updated')
   },
   computed: {
     /** 多重过滤（分类 + 搜索） */
-    filteredOrders () {
+    filteredOrders() {
       return this.orderList.filter(order => {
         // A. 分类过滤
         let tabMatch = true
@@ -423,7 +558,7 @@ export default {
         const isComm = order.isCommented
         if (this.activeTab === 'unpaid') tabMatch = s === 0
         else if (this.activeTab === 'action') tabMatch = [1, 3].includes(s)
-        else if (this.activeTab === 'mailing') tabMatch = (s === 9)
+        else if (this.activeTab === 'mailing') tabMatch = [9, 10].includes(s)
         else if (this.activeTab === 'processing') tabMatch = [2, 4, 7, 8].includes(s)
         else if (this.activeTab === 'shipping') tabMatch = s === 5
         else if (this.activeTab === 'review') {
@@ -433,7 +568,7 @@ export default {
         // B. 搜索过滤
         const snapshot = this.parseSnapshot(order.productSnapshot)
         const searchMatch = order.orderNo.includes(this.searchKey) ||
-                            snapshot.title.toLowerCase().includes(this.searchKey.toLowerCase())
+          snapshot.title.toLowerCase().includes(this.searchKey.toLowerCase())
 
         return tabMatch && searchMatch
       })
@@ -441,7 +576,7 @@ export default {
   },
   methods: {
     /** 获取列表数据 */
-    getList () {
+    getList() {
       this.loading = true
       const userStr = localStorage.getItem('Client-User')
       if (!userStr) return
@@ -459,7 +594,7 @@ export default {
       })
     },
     /** 核心：开启详情抽屉 */
-    openDetailDrawer (order) {
+    openDetailDrawer(order) {
       this.selectedOrder = JSON.parse(JSON.stringify(order))
       // ★ 每次打开抽屉，把输入框清空，或者回显已有的单号
       this.myExpressNo = order.expressToAgency || ''
@@ -467,7 +602,7 @@ export default {
     },
 
     // 解析快照 JSON
-    parseSnapshot (jsonStr) {
+    parseSnapshot(jsonStr) {
       if (!jsonStr) return {}
       try {
         return JSON.parse(jsonStr)
@@ -476,66 +611,11 @@ export default {
       }
     },
 
-    // 唤起支付宝支付
-    /*
-    handlePay (order) {
-      const loading = this.$loading({
-        lock: true,
-        text: '正在跳转支付...',
-        spinner: 'el-icon-loading',
-        background: 'rgba(0, 0, 0, 0.7)'
-      })
-
-      request({
-        url: '/client/alipay/pay',
-        method: 'get',
-        params: { orderNo: order.orderNo }
-      }).then(res => {
-        loading.close()
-
-        // res 是若依返回的标准格式：{ code: 200, msg: "下单成功", data: "<form..." }
-        if (res.code === 200) {
-          // ★★★ 核心修复点：取 res.data 而不是 res.msg ★★★
-          const formHtml = res.data
-
-          if (!formHtml || formHtml.indexOf('<form') === -1) {
-            this.$message.error('后端返回的支付表单格式不正确')
-            return
-          }
-
-          // 创建一个临时容器
-          const div = document.createElement('div')
-          div.innerHTML = formHtml // 这时 div 里就有了那个表单
-          document.body.appendChild(div)
-
-          // ★★★ 核心修复点：强制触发表单提交 ★★★
-          // 因为 innerHTML 插入的 <script> 不会自动执行，我们手动点一下
-          this.$nextTick(() => {
-            // 找到刚刚插入的那个名字叫 punchout_form 的表单
-            const payForm = document.getElementsByName('punchout_form')[0]
-            if (payForm) {
-              payForm.submit()
-            } else {
-              // 如果名字不对，就提交页面上最后一个表单
-              document.forms[document.forms.length - 1].submit()
-            }
-          })
-        } else {
-          this.$message.error(res.msg || '支付发起失败')
-        }
-      }).catch(err => {
-        console.error(err) // 或上报 Sentry / 记录日志
-        this.$message.error('系统故障，请联系管理员')
-      }).finally(() => {
-        loading.close()
-      })
-    },
-    */
 
     /** 
-     * 核心修改：发起 Stripe 支付 
+     * 发起 Stripe 支付 
      */
-   
+
     handlePay(order) {
       const loading = this.$loading({
         lock: true,
@@ -561,60 +641,56 @@ export default {
       })
     },
 
-    // UserOrder.vue 的 methods 
 
-    // UserOrder.vue
 
-// UserOrder.vue 里的 methods
+    checkStripeResult() {
+      // 1. 这种方式能抓取到无论是 # 之前还是之后的参数
+      const fullUrl = window.location.href;
+      console.log(">>> 调试：当前浏览器地址栏全路径:", fullUrl);
 
-checkStripeResult() {
-  // 1. 这种方式能抓取到无论是 # 之前还是之后的参数
-  const fullUrl = window.location.href;
-  console.log(">>> 调试：当前浏览器地址栏全路径:", fullUrl);
+      const urlObj = new URL(fullUrl.replace('#/', '')); // 处理 hash 模式干扰
+      const payResult = urlObj.searchParams.get('payResult');
+      const orderNo = urlObj.searchParams.get('orderNo');
 
-  const urlObj = new URL(fullUrl.replace('#/', '')); // 处理 hash 模式干扰
-  const payResult = urlObj.searchParams.get('payResult');
-  const orderNo = urlObj.searchParams.get('orderNo');
+      console.log(">>> 调试：尝试提取到的参数:", { payResult, orderNo });
 
-  console.log(">>> 调试：尝试提取到的参数:", { payResult, orderNo });
+      if (payResult === 'success' && orderNo) {
+        console.log(">>> 命中支付成功逻辑，准备请求后端 confirm...");
+        this.$router.replace('/user/orders');
 
-  if (payResult === 'success' && orderNo) {
-    console.log(">>> 命中支付成功逻辑，准备请求后端 confirm...");
-    this.$router.replace('/user/orders');
-
-    request({
-      url: '/client/stripe/confirm',
-      method: 'post',
-      data: { orderNo: orderNo }
-    }).then(res => {
-      console.log(">>> 后端 confirm 接口返回:", res);
-      if (res.code === 200) {
-        this.$message.success('支付同步成功，订单已进入下一阶段');
-        this.getList(); // 刷新列表
+        request({
+          url: '/client/stripe/confirm',
+          method: 'post',
+          data: { orderNo: orderNo }
+        }).then(res => {
+          console.log(">>> 后端 confirm 接口返回:", res);
+          if (res.code === 200) {
+            this.$message.success('支付同步成功，订单已进入下一阶段');
+            this.getList(); // 刷新列表
+          }
+        }).catch(err => {
+          console.error(">>> 请求 confirm 接口异常:", err);
+        });
       }
-    }).catch(err => {
-      console.error(">>> 请求 confirm 接口异常:", err);
-    });
-  }
-},
+    },
     // 跳转上传页 (下一步要做这个页面)
     handleUpload(order) {
       this.$router.push(`/order/upload?orderId=${order.id}`)
     },
 
     // 跳转详情
-    goDetail (id) {
+    goDetail(id) {
       this.$router.push(`/order/detail/${id}`) // 还没做，先预留
     },
 
     // 判断是否是 JSON 数组字符串
-    isJsonArray (str) {
+    isJsonArray(str) {
       if (!str) return false
       return typeof str === 'string' && str.startsWith('[')
     },
 
     /** 1. 解析 JSON 字符串 */
-    parseJson (str) {
+    parseJson(str) {
       if (!str) return []
       try {
         return JSON.parse(str)
@@ -624,7 +700,7 @@ checkStripeResult() {
     },
 
     /** 2. 用户点击胶囊确认时间 */
-    handleConfirmTime (order, selectedTime) {
+    handleConfirmTime(order, selectedTime) {
       this.$confirm(`确认选择 ${selectedTime} 参加面试吗？`, '面试时间确认', {
         confirmButtonText: '确定',
         cancelButtonText: '取消',
@@ -636,7 +712,6 @@ checkStripeResult() {
           id: order.id,
           interviewTime: selectedTime, // 确定最终时间
           interviewSlots: null, // 清空备选列表，设为空字符串
-          status: 8 // 状态流转到 8：待面试
         }
 
         // ★★★ 核心修复：使用 request 访问刚才新建的 C端接口 ★★★
@@ -654,15 +729,40 @@ checkStripeResult() {
       }).catch(() => { })
     },
 
+    openRejectSlotsDialog() {
+      this.slotRejectRemark = '';
+      this.rejectSlotOpen = true;
+    },
+    submitSlotReject() {
+      if (!this.slotRejectRemark) return this.$message.warning('请输入您的要求');
+
+      const data = {
+        id: this.selectedOrder.id,
+        userRemark: "【时间不便】" + this.slotRejectRemark, 
+        // 逻辑：一旦用户驳回，我们可以清空之前的 slots，触发管理员重新发送
+        interviewSlots: null
+      };
+
+      request({
+        url: '/client/order/update',
+        method: 'put',
+        data: data
+      }).then(res => {
+        this.$message.success('反馈已发送，顾问将重新为您安排时间');
+        this.rejectSlotOpen = false;
+        this.getList();
+      });
+    },
+
     /** 3. 下载面试确认单 */
-    downloadFile (url) {
+    downloadFile(url) {
       if (!url) return
       window.open('http://localhost:8080' + url, '_blank')
     },
 
     /** 4. 用户反馈面试完成 */
     /** 1. 点击“我已面试完”按钮触发 */
-    handleInterviewFinish (order) {
+    handleInterviewFinish(order) {
       this.currentOrder = order
       // 根据订单份数初始化反馈数组
       this.feedbackList = []
@@ -674,13 +774,13 @@ checkStripeResult() {
     },
 
     /** 2. 凭证上传成功 */
-    handleSlipSuccess (res) {
+    handleSlipSuccess(res) {
       this.slipUrl = res.fileName
       this.$message.success('凭证上传成功')
     },
 
     /** 3. 提交反馈到后端 */
-    submitFeedback () {
+    submitFeedback() {
       // 不要用 this.loading = true，否则列表会消失
       // 如果非要用，记得最后要把 loading 变回 false
 
@@ -703,13 +803,13 @@ checkStripeResult() {
     },
 
     /** 5. 下载/预览确认单 */
-    downloadTemplate (url, name) {
+    downloadTemplate(url, name) {
       if (!url) return
       // 直接新窗口打开
       window.open('http://localhost:8080' + url, '_blank')
     },
 
-    handleConfirmReceipt (order) {
+    handleConfirmReceipt(order) {
       this.$confirm('请确认您已收到快递并核对护照原件。确认后订单将正式结案。', '确认收货', {
         confirmButtonText: '确认收到',
         cancelButtonText: '取消',
@@ -733,18 +833,18 @@ checkStripeResult() {
     },
 
     /** 打开留言板 */
-    handleOpenChat (order) {
+    handleOpenChat(order) {
       // 跳转到 AI 助手或者留言页 (根据你之前的逻辑)
       this.$router.push(`/ai-chat?orderId=${order.id}`)
     },
 
     /** 1. 核心：监听文件列表变化 */
-    handleFileChange (file, fileList) {
-    // 只要文件列表变了（添加、上传成功、删除），就同步给 tempFileList
+    handleFileChange(file, fileList) {
+      // 只要文件列表变了（添加、上传成功、删除），就同步给 tempFileList
       this.tempFileList = fileList
     },
 
-    openSuppDialog (order, index) {
+    openSuppDialog(order, index) {
       this.currentOrder = order
       this.targetPersonIdx = index
 
@@ -768,7 +868,7 @@ checkStripeResult() {
     },
 
     /** 获取某位申请人的补件文件数组（用于回显） */
-    getSuppFileList (order, idx) {
+    getSuppFileList(order, idx) {
       if (!order.supplementaryMaterials) return []
       try {
         const allData = JSON.parse(order.supplementaryMaterials)
@@ -777,7 +877,7 @@ checkStripeResult() {
     },
 
     /** 打开补件弹窗并实现“回显” */
-    handleUploadSupplementary (order, idx) {
+    handleUploadSupplementary(order, idx) {
       this.currentOrder = order
       this.targetPersonIdx = idx
 
@@ -794,7 +894,7 @@ checkStripeResult() {
     },
 
     /** 处理补件上传成功 */
-    handleSuppSuccess (res, file, fileList) {
+    handleSuppSuccess(res, file, fileList) {
       if (res.code === 200) {
         file.fileName = res.fileName // 存入后端返回的路径
         this.tempFileList = fileList
@@ -803,12 +903,12 @@ checkStripeResult() {
     },
 
     /** 处理补件删除 */
-    handleSuppRemove (file, fileList) {
+    handleSuppRemove(file, fileList) {
       this.tempFileList = fileList
     },
 
     /** 提交补充材料（保存到数据库） */
-    submitSupplementary () {
+    submitSupplementary() {
       // 提取所有文件的真正路径
       const finalPaths = this.tempFileList.map(f => {
         return f.response ? f.response.fileName : (f.fileName || f.url)
@@ -843,18 +943,18 @@ checkStripeResult() {
     },
 
     /** 翻译结果标签和文字 */
-    getResultTagType (status) {
+    getResultTagType(status) {
       if (status === 1) return 'success' // 绿色
       if (status === 3) return 'warning' // 黄色
       return 'danger' // 红色
     },
-    getResultText (status) {
+    getResultText(status) {
       if (status === 1) return '已出签'
       if (status === 3) return '审查中(Check)'
       return '已拒签'
     },
     /** 处理补件列表中的点击预览 */
-    handleSuppPreview (file) {
+    handleSuppPreview(file) {
       // 1. 获取文件路径
       // 如果是新上传的，路径在 file.response.fileName
       // 如果是回显的，路径在 file.fileName 或 file.url
@@ -870,7 +970,7 @@ checkStripeResult() {
     },
 
     /** 评价图片上传成功 */
-    handleCommentImageSuccess (res, file, fileList) {
+    handleCommentImageSuccess(res, file, fileList) {
       if (res.code === 200) {
         this.commentFileList = fileList
         this.$message.success('图片上传成功')
@@ -878,12 +978,12 @@ checkStripeResult() {
     },
 
     /** 评价图片移除 */
-    handleCommentImageRemove (file, fileList) {
+    handleCommentImageRemove(file, fileList) {
       this.commentFileList = fileList
     },
 
     /** 打开评价弹窗方法 */
-    handleOpenComment (order) {
+    handleOpenComment(order) {
       this.currentOrder = order
       this.commentFileList = [] // 重置图片列表
       this.commentForm = {
@@ -898,7 +998,7 @@ checkStripeResult() {
     },
 
     /** 提交方法 */
-    submitMyComment () {
+    submitMyComment() {
       if (this.commentForm.rating === 0) {
         return this.$message.warning('请给本次服务打个分吧')
       }
@@ -923,14 +1023,14 @@ checkStripeResult() {
       })
     },
 
-    handleTabChange (key) {
+    handleTabChange(key) {
       this.activeTab = key
     },
-    handleSearch () {
+    handleSearch() {
       // computed 会自动响应 searchKey 的变化
     },
     /** 获取每个 Tab 的订单数量统计 */
-    getTabCount (key) {
+    getTabCount(key) {
       // 1. 全部订单不显示角标
       if (key === 'all') return 0
 
@@ -942,8 +1042,9 @@ checkStripeResult() {
         // 待付款：状态 0
         if (key === 'unpaid') return s === 0
 
-        // 待办材料（核心任务区）：支付完没传(1) 或 审核没过需补交(3) 或 待寄送原件(9)
-        if (key === 'action') return [1, 3, 9].includes(s)
+        // 待办材料（核心任务区）：支付完没传(1) 或 审核没过需补交(3) 
+        if (key === 'action') return [1, 3].includes(s)
+        if (key === 'mailing') return [9, 10].includes(s)
 
         // 办理中：正在审核(2)、等待录入方案(7)、等待面试(8)、使馆办理中(4)
         if (key === 'processing') return [2, 4, 7, 8].includes(s)
@@ -958,7 +1059,7 @@ checkStripeResult() {
       }).length
     },
     /** 打开追评弹窗 */
-    handleOpenFollowUp (order) {
+    handleOpenFollowUp(order) {
       this.followUpForm = {
         // 使用联表查出来的 commentId
         id: order.commentId,
@@ -968,7 +1069,7 @@ checkStripeResult() {
     },
 
     /** 提交追评 */
-    submitFollowUp () {
+    submitFollowUp() {
       if (!this.followUpForm.content.trim()) {
         return this.$message.warning('请输入追评内容')
       }
@@ -989,22 +1090,47 @@ checkStripeResult() {
         this.loading = false
       })
     },
-    submitUserExpress () {
-      if (!this.myExpressNo) return this.$message.error('请输入快递单号')
+    /** 提交用户寄给中介的单号 */
+    /** 提交用户寄给中介的单号 */
+    submitUserExpress() {
+      if (!this.mailForm.no) return this.$message.error('请输入快递单号');
+      const userAddr = JSON.parse(this.selectedOrder.mailingAddress || '{}');
 
-      const data = {
-        id: this.selectedOrder.id,
-        expressToAgency: this.myExpressNo
-      }
+      this.loading = true;
 
+      const logisticsData = {
+        orderId: this.selectedOrder.id,
+        orderNo: this.selectedOrder.orderNo,
+        courierCompany: this.mailForm.company,
+        trackingNo: this.mailForm.no,
+        senderName: userAddr.contactName || '客户',
+        senderPhone: userAddr.contactPhone || '',
+        mailAddress: `收件人：${this.agencyInfo.name}, 地址：${this.agencyInfo.address}`,
+      };
+
+      // ★★★ 修正路径：必须与 Controller 的 RequestMapping 对应 ★★★
       request({
-        url: '/client/order/update',
-        method: 'put',
-        data: data
+        url: '/client/order/submitMailing', // 注意：是 client/order/submitMailing
+        method: 'post',
+        data: logisticsData
       }).then(res => {
-        this.$message.success('单号提交成功，请等待中介签收')
-        this.getList() // 刷新列表，更新 selectedOrder 的状态
-      })
+        if (res.code === 200) {
+          this.$message.success('单号提交成功！');
+          this.selectedOrder.status = 10; // 前端本地同步状态
+          this.detailDrawerOpen = false;
+          this.getList();
+        }
+      }).finally(() => {
+        this.loading = false;
+      });
+    },
+
+    /** 辅助：复制地址 */
+    copyAgencyAddress() {
+      const text = `收件人：${this.agencyInfo.name}\n电话：${this.agencyInfo.phone}\n地址：${this.agencyInfo.address}`;
+      navigator.clipboard.writeText(text).then(() => {
+        this.$message.success('地址已复制到剪贴板');
+      });
     }
 
   }
@@ -1507,15 +1633,21 @@ checkStripeResult() {
     text-decoration: none;
   }
 
-  i { margin-right: 3px; }
+  i {
+    margin-right: 3px;
+  }
 }
 
 .supp-uploader {
+
   /* 让文件列表里的名字看起来像可以点击的链接 */
   ::v-deep .el-upload-list__item-name {
     color: $primary-color;
     cursor: pointer;
-    &:hover { color: $primary-hover; }
+
+    &:hover {
+      color: $primary-hover;
+    }
   }
 }
 
@@ -1546,6 +1678,7 @@ checkStripeResult() {
 .search-wrapper {
   position: relative;
   width: 280px;
+
   input {
     width: 100%;
     height: 40px;
@@ -1555,12 +1688,14 @@ checkStripeResult() {
     padding: 0 40px 0 15px;
     font-size: 14px;
     transition: all 0.3s;
+
     &:focus {
       outline: none;
       border-color: $primary-color;
       box-shadow: 0 0 0 4px rgba(106, 175, 230, 0.1);
     }
   }
+
   i {
     position: absolute;
     right: 15px;
@@ -1574,7 +1709,7 @@ checkStripeResult() {
   display: flex;
   gap: 10px;
   margin-bottom: 30px;
-  background: rgba(255,255,255,0.5);
+  background: rgba(255, 255, 255, 0.5);
   padding: 8px;
   border-radius: 16px;
 
@@ -1588,12 +1723,14 @@ checkStripeResult() {
     transition: all 0.3s;
     position: relative;
 
-    &:hover { color: $primary-color; }
+    &:hover {
+      color: $primary-color;
+    }
 
     &.active {
       background: #fff;
       color: $primary-color;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
     }
 
     .tab-count {
@@ -1626,7 +1763,12 @@ checkStripeResult() {
     justify-content: space-between;
     align-items: center;
     margin-bottom: 8px;
-    .bubble-tag { font-size: 11px; color: $primary-color; font-weight: 700; }
+
+    .bubble-tag {
+      font-size: 11px;
+      color: $primary-color;
+      font-weight: 700;
+    }
   }
 
   .comment-text {
@@ -1644,21 +1786,41 @@ checkStripeResult() {
     border-radius: 8px;
     font-size: 13px;
     color: #718096;
-    .reply-label { font-weight: 700; color: $primary-color; }
+
+    .reply-label {
+      font-weight: 700;
+      color: $primary-color;
+    }
   }
 
   .additional-box {
     margin-top: 12px;
     padding-top: 10px;
     border-top: 1px dashed #CBD5E0;
-    .add-header { font-size: 12px; color: #A0AEC0; margin-bottom: 4px; }
-    .add-content { font-size: 14px; color: #2D3748; font-weight: 600; margin: 0; }
+
+    .add-header {
+      font-size: 12px;
+      color: #A0AEC0;
+      margin-bottom: 4px;
+    }
+
+    .add-content {
+      font-size: 14px;
+      color: #2D3748;
+      font-weight: 600;
+      margin: 0;
+    }
   }
 
   .bubble-footer {
     text-align: right;
     margin-top: 5px;
-    .el-button--text { padding: 0; color: $primary-color; font-size: 12px; }
+
+    .el-button--text {
+      padding: 0;
+      color: $primary-color;
+      font-size: 12px;
+    }
   }
 }
 
@@ -1666,27 +1828,85 @@ checkStripeResult() {
 .compact-order-card {
   padding: 15px 20px !important;
   cursor: pointer;
-  .card-inner { display: flex; align-items: center; }
-  .img-side { margin-right: 15px; .mini-cover { width: 60px; height: 45px; border-radius: 8px; object-fit: cover; } }
+
+  .card-inner {
+    display: flex;
+    align-items: center;
+  }
+
+  .img-side {
+    margin-right: 15px;
+
+    .mini-cover {
+      width: 60px;
+      height: 45px;
+      border-radius: 8px;
+      object-fit: cover;
+    }
+  }
+
   .info-side {
     flex: 1;
-    .order-no-row { font-size: 11px; color: #bbb; margin-bottom: 4px; }
-    .product-title { font-size: 15px; font-weight: 700; color: $text-main; margin-bottom: 5px; }
-    .data-row { font-size: 12px; color: #86868b; .price { color: #ff6b6b; font-weight: bold; } .divider { margin: 0 8px; } }
+
+    .order-no-row {
+      font-size: 11px;
+      color: #bbb;
+      margin-bottom: 4px;
+    }
+
+    .product-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: $text-main;
+      margin-bottom: 5px;
+    }
+
+    .data-row {
+      font-size: 12px;
+      color: #86868b;
+
+      .price {
+        color: #ff6b6b;
+        font-weight: bold;
+      }
+
+      .divider {
+        margin: 0 8px;
+      }
+    }
   }
+
   .status-side {
-    text-align: right; display: flex; align-items: center; gap: 10px;
-    .status-text { font-size: 13px; font-weight: 600; }
-    .arrow-icon { color: #DCDFE6; font-size: 18px; }
+    text-align: right;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+
+    .status-text {
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .arrow-icon {
+      color: #DCDFE6;
+      font-size: 18px;
+    }
   }
 }
 
 /* 2. 抽屉样式重写 */
 ::v-deep .apple-drawer {
-  background-color: #F5F5F7 !important; /* Apple背景色 */
-  border-radius: 30px 0 0 30px; /* 左侧大圆角 */
+  background-color: #F5F5F7 !important;
+  /* Apple背景色 */
+  border-radius: 30px 0 0 30px;
+  /* 左侧大圆角 */
   outline: none;
-  .el-drawer__header { margin-bottom: 0; padding: 20px; font-weight: 700; }
+
+  .el-drawer__header {
+    margin-bottom: 0;
+    padding: 20px;
+    font-weight: 700;
+  }
 }
 
 .drawer-content {
@@ -1698,11 +1918,78 @@ checkStripeResult() {
 .drawer-header-status {
   padding: 30px 20px;
   color: #fff;
-  &.bg-status-0 { background: linear-gradient(135deg, #FF9500, #FFCC00); }
-  &.bg-status-1, &.bg-status-3 { background: linear-gradient(135deg, #007AFF, #5AC8FA); }
-  &.bg-status-6 { background: linear-gradient(135deg, #34C759, #32D74B); }
-  .status-main { font-size: 24px; font-weight: 800; margin-bottom: 5px; }
-  .status-desc { font-size: 13px; opacity: 0.8; }
+
+  /* 0: 待支付 - 亮橙色 (提醒行动) */
+  &.bg-status-0 {
+    background: linear-gradient(135deg, #FF9500, #FFCC00);
+  }
+
+  /* 1: 待上传材料 / 3: 需补交材料 - 经典蓝 (用户操作区) */
+  &.bg-status-1,
+  &.bg-status-3 {
+    background: linear-gradient(135deg, #007AFF, #5AC8FA);
+  }
+
+  /* 2: 材料审核中 - 优雅紫 (中介正在内部审理) */
+  &.bg-status-2 {
+    background: linear-gradient(135deg, #AF52DE, #D6A4EE);
+  }
+
+  /* 9: 待寄送原件 - 中性灰 (动作停滞，等待物理交互) */
+  &.bg-status-9 {
+    background: linear-gradient(135deg, #8E8E93, #AEAEB2);
+  }
+
+  /* 10: 原件已寄出 - 琥珀金 (物流动态) */
+  &.bg-status-10 {
+    background: linear-gradient(135deg, #E6A23C, #F3AF4B);
+  }
+
+  /* 7: 材料过审，待预约面试 - 玫紫色 (关键转折点) */
+  &.bg-status-7 {
+    background: linear-gradient(135deg, #BF5AF2, #E2A2FF);
+  }
+
+  /* 8: 待面试 - 樱桃红 (重要日期提醒) */
+  &.bg-status-8 {
+    background: linear-gradient(135deg, #FF2D55, #FF5E7B);
+  }
+
+  /* 4: 办理中/送签中 - 靛蓝色 (使馆受理，最正式的阶段) */
+  &.bg-status-4 {
+    background: linear-gradient(135deg, #5856D6, #7D7BE5);
+  }
+
+  /* 5: 待收货/寄回中 - 薄荷绿/青色 (包裹即将到达的喜悦) */
+  &.bg-status-5 {
+    background: linear-gradient(135deg, #30B0C7, #5DD5D5);
+  }
+
+  /* 6: 已完成 - 苹果绿 (最终成功) */
+  &.bg-status-6 {
+    background: linear-gradient(135deg, #34C759, #32D74B);
+  }
+
+  .status-main {
+    font-size: 24px;
+    font-weight: 800;
+    margin-bottom: 5px;
+  }
+
+  .status-desc {
+    font-size: 13px;
+    opacity: 0.8;
+  }
+}
+
+.status-text {
+  &.color-9 {
+    color: #909399;
+  }
+
+  &.color-10 {
+    color: #E6A23C;
+  }
 }
 
 .drawer-body-scroll {
@@ -1716,24 +2003,60 @@ checkStripeResult() {
   border-radius: 20px;
   padding: 20px;
   margin-bottom: 15px;
-  box-shadow: 0 4px 15px rgba(0,0,0,0.02);
-  .card-label { font-size: 13px; font-weight: 700; color: #86868b; margin-bottom: 15px; text-transform: uppercase; }
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.02);
+
+  .card-label {
+    font-size: 13px;
+    font-weight: 700;
+    color: #86868b;
+    margin-bottom: 15px;
+    text-transform: uppercase;
+  }
 }
 
 .product-summary {
-  display: flex; align-items: center; gap: 15px;
-  .summary-img { width: 80px; height: 60px; border-radius: 10px; object-fit: cover; }
-  h4 { font-size: 16px; margin-bottom: 5px; color: $text-main; }
-  p { font-size: 12px; color: #999; }
+  display: flex;
+  align-items: center;
+  gap: 15px;
+
+  .summary-img {
+    width: 80px;
+    height: 60px;
+    border-radius: 10px;
+    object-fit: cover;
+  }
+
+  h4 {
+    font-size: 16px;
+    margin-bottom: 5px;
+    color: $text-main;
+  }
+
+  p {
+    font-size: 12px;
+    color: #999;
+  }
 }
 
 /* 抽屉内时间胶囊 */
 .drawer-slots {
-  display: flex; flex-direction: column; gap: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+
   .drawer-time-capsule {
-    background: #F7F9FC; border-radius: 12px; padding: 12px; text-align: center;
-    font-weight: 600; cursor: pointer; transition: all 0.3s;
-    &:hover { background: #EBF5FF; color: $primary-color; }
+    background: #F7F9FC;
+    border-radius: 12px;
+    padding: 12px;
+    text-align: center;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+
+    &:hover {
+      background: #EBF5FF;
+      color: $primary-color;
+    }
   }
 }
 
@@ -1746,21 +2069,43 @@ checkStripeResult() {
   text-align: center;
 
   .drawer-main-btn {
-    width: 100%; height: 50px; border-radius: 15px !important; font-size: 16px; font-weight: 700;
+    width: 100%;
+    height: 50px;
+    border-radius: 15px !important;
+    font-size: 16px;
+    font-weight: 700;
   }
 
   .contact-support {
-    margin-top: 15px; font-size: 13px; color: $primary-color; cursor: pointer;
-    &:hover { text-decoration: underline; }
+    margin-top: 15px;
+    font-size: 13px;
+    color: $primary-color;
+    cursor: pointer;
+
+    &:hover {
+      text-decoration: underline;
+    }
   }
 }
 
 .shipping-guide-card {
   background: linear-gradient(135deg, #ffffff 0%, #f0f7ff 100%) !important;
+  border: 1px solid #e6f0ff !important;
+
   .agency-address {
     padding: 10px 0;
-    .address-item { font-size: 14px; margin-bottom: 8px; color: #444; }
+
+    .address-item {
+      font-size: 14px;
+      margin-bottom: 8px;
+      color: #444;
+    }
   }
-  .input-tip { font-size: 12px; color: #999; margin-bottom: 10px; }
+
+  .input-tip {
+    font-size: 12px;
+    color: #999;
+    margin-bottom: 10px;
+  }
 }
 </style>

@@ -2,6 +2,7 @@ package com.ruoyi.visa.service;
 
 import java.util.List;
 import com.ruoyi.visa.domain.VisaOrder;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 签证订单Service接口
@@ -75,5 +76,10 @@ public interface IVisaOrderService
      * 循环插入申请人子表的方法
      */
     public void insertApplicants(VisaOrder visaOrder);
+
+    /**
+     * 管理员审核电子材料通过后的逻辑处理
+     */
+    public int approveElectronicMaterials(Long orderId, String auditRemark);
 
 }

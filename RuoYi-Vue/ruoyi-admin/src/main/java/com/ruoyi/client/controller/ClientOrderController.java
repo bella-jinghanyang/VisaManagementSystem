@@ -8,8 +8,10 @@ import com.ruoyi.common.utils.StringUtils;
 import com.ruoyi.common.utils.uuid.IdUtils;
 import com.ruoyi.visa.domain.VisaCart;
 import com.ruoyi.visa.domain.VisaOrder;
+import com.ruoyi.visa.domain.VisaOrderLogistics;
 import com.ruoyi.visa.domain.VisaProduct;
 import com.ruoyi.visa.service.IVisaCartService;
+import com.ruoyi.visa.service.IVisaOrderLogisticsService;
 import com.ruoyi.visa.service.IVisaOrderService;
 import com.ruoyi.visa.service.IVisaProductService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -35,6 +37,9 @@ public class ClientOrderController extends BaseController {
 
     @Autowired
     private IVisaCartService visaCartService;
+
+    @Autowired
+    private IVisaOrderLogisticsService logisticsService;
 
     /**
      * 提交订单（第一步：生成订单，不含材料上传）
@@ -192,5 +197,26 @@ public class ClientOrderController extends BaseController {
         // 逻辑：仅更新补充材料字段，不强制改状态（除非你想改回待审核）
         // 管理员会在后台通过“留言板”或刷新列表看到新材料
         return toAjax(visaOrderService.updateVisaOrder(order));
+    }
+
+    /**
+     * 用户提交寄给中介的快递单号
+     */
+    @PostMapping("/submitMailing")
+    public AjaxResult submitMailing(@RequestBody VisaOrderLogistics logistics) {
+        logistics.setDirection(1);
+        logistics.setCreateTime(DateUtils.getNowDate());
+        logistics.setStatus(1);
+        logisticsService.insertVisaOrderLogistics(logistics);
+
+        // ★ 安全写法：不要传整个旧对象，只传 ID 和要改的字段
+        VisaOrder upOrder = new VisaOrder();
+        upOrder.setId(logistics.getOrderId());
+        upOrder.setStatus(10L);
+        upOrder.setUpdateTime(DateUtils.getNowDate());
+
+        visaOrderService.updateVisaOrder(upOrder);
+
+        return AjaxResult.success("单号已记录");
     }
 }

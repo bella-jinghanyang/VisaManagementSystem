@@ -162,6 +162,14 @@
             <el-option label="否" :value="0"></el-option>
           </el-select>
         </el-form-item>
+        <el-form-item label="寄送原件" prop="isPhysicalRequired">
+          <el-switch v-model="form.isPhysicalRequired" :active-value="1" :inactive-value="0" active-text="需要寄送护照原件"
+            inactive-text="纯电子签(无需寄送)">
+          </el-switch>
+          <div class="help-block" style="color: #999; font-size: 12px;">
+            开启后，电子材料审核通过将进入“待寄送原件”环节；关闭则直接进入“办理中”。
+          </div>
+        </el-form-item>
         <el-form-item label="预计办理时长" prop="processingTime">
           <el-input v-model="form.processingTime" placeholder="请输入预计办理时长" />
         </el-form-item>
@@ -292,7 +300,8 @@ export default {
         maxStayDays: null,
         districtId: null,
         status: null,
-        createTime: null
+        createTime: null,
+        isPhysicalRequired: null,
       }
       this.resetForm("form")
     },

@@ -42,3 +42,11 @@ export function delOrder(id) {
     method: 'delete'
   })
 }
+
+export function approveOrder(id, data) {
+  return request({
+    url: '/visa/order/approve/' + id,
+    method: 'put',
+    data: data
+  })
+}

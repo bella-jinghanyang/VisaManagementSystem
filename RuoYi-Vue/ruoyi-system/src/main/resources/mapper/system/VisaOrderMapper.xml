@@ -18,11 +18,9 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <result property="submittedMaterials"    column="submitted_materials"    />
         <result property="auditRemark"    column="audit_remark"    />
         <result property="interviewTime"    column="interview_time"    />
-        <result property="interviewLocation"    column="interview_location"    />
         <result property="interviewFile"    column="interview_file"    />
         <result property="interviewFeedback"    column="interview_feedback"    />
         <result property="visaResult"    column="visa_result"    />
-        <result property="trackingNumber"    column="tracking_number"    />
         <result property="mailingAddress"    column="mailing_address"    />
         <result property="createTime"    column="create_time"    />
         <result property="updateTime"    column="update_time"    />
@@ -37,7 +35,11 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <result property="adminReply"   column="admin_reply"   />
         <result property="additionalContent" column="additional_content" />
         <result property="additionalTime"    column="additional_time"    />
-        <result property="expressToAgency" column="express_to_agency" />
+        <result property="isPhysicalRequired" column="is_physical_required" />
+        <result property="expressToAgency" column="logistics_user_to_agency" />
+        <result property="trackingNumber" column="logistics_agency_to_user" />
+        <result property="userRemark" column="user_remark" />
+
     </resultMap>
 
 
@@ -57,11 +59,9 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             vo.submitted_materials,
             vo.audit_remark,
             vo.interview_time,
-            vo.interview_location,
             vo.interview_file,
             vo.interview_feedback,
             vo.visa_result,
-            vo.tracking_number,
             vo.mailing_address,
             vo.create_time,
             vo.update_time,
@@ -69,17 +69,22 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             vo.interview_slots,
             vo.supplementary_materials,
             vo.is_commented,
-            vo.express_to_agency,
+            vo.user_remark,
             vp.is_interview_required,
+            vp.is_physical_required,
             vc.id as comment_id,
             vc.rating as comment_rate,
             vc.content as comment_text,
             vc.admin_reply as admin_reply,
             vc.additional_content as additional_content,
-            vc.additional_time as additional_time
+            vc.additional_time as additional_time,
+            vol1.tracking_no as logistics_user_to_agency,
+            vol2.tracking_no as logistics_agency_to_user
         from visa_order vo
                  left join visa_product vp on vo.product_id = vp.id
                  left join visa_comment vc on vo.id = vc.order_id
+                 left join visa_order_logistics vol1 on vo.id = vol1.order_id and vol1.direction = 1
+                 left join visa_order_logistics vol2 on vo.id = vol2.order_id and vol2.direction = 2
     </sql>
 
     <select id="selectVisaOrderList" parameterType="VisaOrder" resultMap="VisaOrderResult">
@@ -97,19 +102,33 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="submittedMaterials != null  and submittedMaterials != ''"> and vo.submitted_materials = #{submittedMaterials}</if>
             <if test="auditRemark != null  and auditRemark != ''"> and vo.audit_remark = #{auditRemark}</if>
             <if test="interviewTime != null "> and vo.interview_time = #{interviewTime}</if>
-            <if test="interviewLocation != null  and interviewLocation != ''"> and vo.interview_location = #{interviewLocation}</if>
             <if test="interviewFile != null  and interviewFile != ''"> and vo.interview_file = #{interviewFile}</if>
             <if test="interviewFeedback != null "> and vo.interview_feedback = #{interviewFeedback}</if>
             <if test="visaResult != null "> and vo.visa_result = #{visaResult}</if>
-            <if test="trackingNumber != null  and trackingNumber != ''"> and vo.tracking_number = #{trackingNumber}</if>
             <if test="mailingAddress != null  and mailingAddress != ''"> and vo.mailing_address = #{mailingAddress}</if>
             <if test="interviewSlots != null  and interviewSlots != ''"> and vo.interview_slots = #{interviewSlots}</if>
             <if test="supplementaryMaterials != null  and supplementaryMaterials != ''"> and vo.supplementary_materials = #{supplementaryMaterials}</if>
-            <if test="expressToAgency != null  and expressToAgency != ''"> and vo.express_to_agency = #{expressToAgency}</if>
-
-            <if test="params.auditType != null and params.auditType == 'processing'">
-                AND (vo.status = 4 OR vo.status = 7 OR vo.status = 8 OR vo.status = 9)
+            <if test="params.auditType != null">
+                <choose>
+                    <!-- Tab 1: 材料初审 -->
+                    <when test="params.auditType == 'material'">
+                        AND vo.status = 2
+                    </when>
+                    <!-- Tab 2: 原件签收 -->
+                    <when test="params.auditType == 'physical'">
+                        AND vo.status = 10
+                    </when>
+                    <!-- Tab 3: 办理中 (进度追踪) -->
+                    <when test="params.auditType == 'processing'">
+                        AND vo.status IN (4, 7, 8, 9)
+                    </when>
+                    <!-- Tab 4: 结案订单 -->
+                    <when test="params.auditType == 'completed'">
+                        AND vo.status IN (5, 6)
+                    </when>
+                </choose>
             </if>
+            <if test="status != null"> and vo.status = #{status}</if>
             and vo.del_flag = '0'
         </where>
     </select>
@@ -138,18 +157,15 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="submittedMaterials != null">submitted_materials,</if>
             <if test="auditRemark != null">audit_remark,</if>
             <if test="interviewTime != null">interview_time,</if>
-            <if test="interviewLocation != null">interview_location,</if>
             <if test="interviewFile != null">interview_file,</if>
             <if test="interviewFeedback != null">interview_feedback,</if>
             <if test="visaResult != null">visa_result,</if>
-            <if test="trackingNumber != null">tracking_number,</if>
             <if test="mailingAddress != null">mailing_address,</if>
             <if test="createTime != null">create_time,</if>
             <if test="updateTime != null">update_time,</if>
             <if test="delFlag != null">del_flag,</if>
-            <if test="interviewSlots != null">interview_slots</if>
-            <if test="supplementaryMaterials != null">supplementary_materials</if>
-            <if test="expressToAgency != null">express_to_agency</if>
+            <if test="interviewSlots != null">interview_slots,</if>
+            <if test="supplementaryMaterials != null">supplementary_materials,</if>
 
          </trim>
         <trim prefix="values (" suffix=")" suffixOverrides=",">
@@ -165,18 +181,15 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="submittedMaterials != null">#{submittedMaterials},</if>
             <if test="auditRemark != null">#{auditRemark},</if>
             <if test="interviewTime != null">#{interviewTime},</if>
-            <if test="interviewLocation != null">#{interviewLocation},</if>
             <if test="interviewFile != null">#{interviewFile},</if>
             <if test="interviewFeedback != null">#{interviewFeedback},</if>
             <if test="visaResult != null">#{visaResult},</if>
-            <if test="trackingNumber != null">#{trackingNumber},</if>
             <if test="mailingAddress != null">#{mailingAddress},</if>
             <if test="createTime != null">#{createTime},</if>
             <if test="updateTime != null">#{updateTime},</if>
             <if test="delFlag != null">#{delFlag},</if>
             <if test="interviewSlots != null">#{interviewSlots},</if>
             <if test="supplementaryMaterials != null">#{supplementaryMaterials},</if>
-            <if test="expressToAgency != null">#{expressToAgency},</if>
 
          </trim>
     </insert>
@@ -196,11 +209,9 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="submittedMaterials != null">submitted_materials = #{submittedMaterials},</if>
             <if test="auditRemark != null">audit_remark = #{auditRemark},</if>
             <if test="interviewTime != null">interview_time = #{interviewTime},</if>
-            <if test="interviewLocation != null">interview_location = #{interviewLocation},</if>
             <if test="interviewFile != null">interview_file = #{interviewFile},</if>
             <if test="interviewFeedback != null">interview_feedback = #{interviewFeedback},</if>
             <if test="visaResult != null">visa_result = #{visaResult},</if>
-            <if test="trackingNumber != null">tracking_number = #{trackingNumber},</if>
             <if test="mailingAddress != null">mailing_address = #{mailingAddress},</if>
             <if test="createTime != null">create_time = #{createTime},</if>
             <if test="updateTime != null">update_time = #{updateTime},</if>
@@ -208,7 +219,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="interviewSlots != null">interview_slots = #{interviewSlots},</if>
             <if test="supplementaryMaterials != null">supplementary_materials = #{supplementaryMaterials},</if>
             <if test="isCommented != null">is_commented = #{isCommented},</if>
-            <if test="expressToAgency != null">express_to_agency = #{expressToAgency},</if>
+            <if test="userRemark != null">user_remark = #{userRemark},</if>
         </trim>
         where id = #{id}
     </update>
@@ -245,4 +256,6 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         GROUP BY om.customer_id, om.order_id
         ORDER BY last_time DESC
     </select>
+
+
 </mapper>

@@ -20,10 +20,6 @@
       <el-form-item label="流水号" prop="alipayNo">
         <el-input v-model="queryParams.alipayNo" placeholder="请输入流水号" clearable @keyup.enter.native="handleQuery" />
       </el-form-item>
-      <el-form-item label="快递单号" prop="trackingNumber">
-        <el-input v-model="queryParams.trackingNumber" placeholder="请输入快递单号" clearable
-          @keyup.enter.native="handleQuery" />
-      </el-form-item>
       <el-form-item>
         <el-button type="primary" icon="el-icon-search" size="mini" @click="handleQuery">搜索</el-button>
         <el-button icon="el-icon-refresh" size="mini" @click="resetQuery">重置</el-button>
@@ -164,7 +160,7 @@
         </template>
       </el-table-column>
 
-      <el-table-column label="快递单号" align="center" prop="trackingNumber" />
+     
 
       <!-- 地址 JSON 快照查看 -->
       <el-table-column label="收货地址" align="center" prop="mailingAddress" width="100">
@@ -226,9 +222,7 @@
           <el-date-picker clearable v-model="form.interviewTime" type="date" value-format="yyyy-MM-dd"
             placeholder="请选择面试时间"></el-date-picker>
         </el-form-item>
-        <el-form-item label="面试地点" prop="interviewLocation">
-          <el-input v-model="form.interviewLocation" placeholder="请输入面试地点" />
-        </el-form-item>
+        
         <el-form-item label="面试预约单" prop="interviewFile">
           <file-upload v-model="form.interviewFile" />
         </el-form-item>
@@ -246,12 +240,6 @@
             <el-option label="1 出签" value="1"></el-option>
             <el-option label="2 拒签" value="2"></el-option>
           </el-select>
-        </el-form-item>
-        <el-form-item label="快递单号" prop="trackingNumber">
-          <el-input v-model="form.trackingNumber" placeholder="请输入寄送回护照的单号" />
-        </el-form-item>
-        <el-form-item label="收货地址" prop="mailingAddress">
-          <el-input v-model="form.mailingAddress" type="textarea" placeholder="请输入内容(JSON)" />
         </el-form-item>
       </el-form>
       <div slot="footer" class="dialog-footer">

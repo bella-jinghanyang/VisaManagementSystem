@@ -23,6 +23,7 @@
         <result property="typeName" column="type_name"/>
         <result property="districtName" column="district_name"/>
         <result property="coverArea" column="cover_area" />
+        <result property="isPhysicalRequired" column="is_physical_required" />
     </resultMap>
 
     <sql id="selectVisaProductVo">
@@ -39,6 +40,7 @@
                p.processing_time,
                p.validity_period,
                p.max_stay_days,
+               p.is_physical_required,
                c.name as country_name,
                t.name as type_name,
                d.name as district_name,
@@ -66,6 +68,7 @@
             <if test="maxStayDays != null  and maxStayDays != ''">and max_stay_days = #{maxStayDays}</if>
             <if test="districtId != null ">and district_id = #{districtId}</if>
             <if test="status != null ">and p.status = #{status}</if>
+            <if test="isPhysicalRequired != null">and is_physical_required = #{isPhysicalRequired}</if>
         </where>
     </select>
 
@@ -90,6 +93,7 @@
             <if test="districtId != null">district_id,</if>
             <if test="status != null">status,</if>
             <if test="createTime != null">create_time,</if>
+            <if test="isPhysicalRequired != null">is_physical_required</if>
         </trim>
         <trim prefix="values (" suffix=")" suffixOverrides=",">
             <if test="title != null and title != ''">#{title},</if>
@@ -105,6 +109,7 @@
             <if test="districtId != null">#{districtId},</if>
             <if test="status != null">#{status},</if>
             <if test="createTime != null">#{createTime},</if>
+            <if test="isPhysicalRequired != null">#{is_physical_required}</if>
         </trim>
     </insert>
 
@@ -124,6 +129,7 @@
             <if test="districtId != null">district_id = #{districtId},</if>
             <if test="status != null">status = #{status},</if>
             <if test="createTime != null">create_time = #{createTime},</if>
+            <if test="isPhysicalRequired != null">is_physical_required = #{isPhysicalRequired}</if>
         </trim>
         where id = #{id}
     </update>

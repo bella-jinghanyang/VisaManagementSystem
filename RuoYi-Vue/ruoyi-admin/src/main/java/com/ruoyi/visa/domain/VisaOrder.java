@@ -73,10 +73,6 @@ public class VisaOrder extends BaseEntity
     @Excel(name = "预约面试时间", width = 30, dateFormat = "yyyy-MM-dd HH:mm:ss")
     private Date interviewTime;
 
-    /** 面试地点 */
-    @Excel(name = "面试地点")
-    private String interviewLocation;
-
     /** 面试预约单文件路径 */
     @Excel(name = "面试预约单文件路径")
     private String interviewFile;
@@ -89,9 +85,6 @@ public class VisaOrder extends BaseEntity
 //    @Excel(name = "最终签证结果(1出签 2拒签)")
     private String visaResult;
 
-    /** 寄回护照的快递单号 */
-    @Excel(name = "寄回护照的快递单号")
-    private String trackingNumber;
 
     /** 收货地址快照(收件人,电话,地址) */
     @Excel(name = "收货地址快照(收件人,电话,地址)")
@@ -123,6 +116,52 @@ public class VisaOrder extends BaseEntity
 
     private List<VisaOrderApplicant> applicantList;
 
+    private VisaOrderLogistics logistics;
+    private Integer isPhysicalRequired;
+    private String expressToAgency;
+    private String trackingNumber;
+    private String courierCompany;
+    private String userRemark;
+
+    public void setUserRemark(String userRemark) {
+        this.userRemark = userRemark;
+    }
+    public String getUserRemark() {
+        return userRemark;
+    }
+
+    public String getCourierCompany() { return courierCompany; }
+    public void setCourierCompany(String courierCompany) { this.courierCompany = courierCompany; }
+
+    public void setTrackingNumber(String trackingNumber) {
+        this.trackingNumber = trackingNumber;
+    }
+    public String getTrackingNumber() {
+        return trackingNumber;
+    }
+
+    public String getExpressToAgency() {
+        return expressToAgency;
+    }
+    public void setExpressToAgency(String expressToAgency) {
+        this.expressToAgency = expressToAgency;
+    }
+
+    public Integer getIsPhysicalRequired() {
+        return isPhysicalRequired;
+    }
+
+    public void setIsPhysicalRequired(Integer isPhysicalRequired) {
+        this.isPhysicalRequired = isPhysicalRequired;
+    }
+
+    public VisaOrderLogistics getLogistics() {
+        return logistics;
+    }
+    public void setLogistics(VisaOrderLogistics logistics) {
+        this.logistics = logistics;
+    }
+
     public String getIdentity() {
         return identity;
     }
@@ -147,16 +186,6 @@ public class VisaOrder extends BaseEntity
 
     public void setIsAi(String isAi) {
         this.isAi = isAi;
-    }
-
-    private String expressToAgency;
-
-    public String getExpressToAgency() {
-        return expressToAgency;
-    }
-
-    public void setExpressToAgency(String expressToAgency) {
-        this.expressToAgency = expressToAgency;
     }
 
     public void setId(Long id)
@@ -289,16 +318,6 @@ public class VisaOrder extends BaseEntity
         return interviewTime;
     }
 
-    public void setInterviewLocation(String interviewLocation) 
-    {
-        this.interviewLocation = interviewLocation;
-    }
-
-    public String getInterviewLocation() 
-    {
-        return interviewLocation;
-    }
-
     public void setInterviewFile(String interviewFile) 
     {
         this.interviewFile = interviewFile;
@@ -327,16 +346,6 @@ public class VisaOrder extends BaseEntity
     public String getVisaResult()
     {
         return visaResult;
-    }
-
-    public void setTrackingNumber(String trackingNumber) 
-    {
-        this.trackingNumber = trackingNumber;
-    }
-
-    public String getTrackingNumber() 
-    {
-        return trackingNumber;
     }
 
     public void setMailingAddress(String mailingAddress) 
@@ -457,11 +466,9 @@ public class VisaOrder extends BaseEntity
             .append("submittedMaterials", getSubmittedMaterials())
             .append("auditRemark", getAuditRemark())
             .append("interviewTime", getInterviewTime())
-            .append("interviewLocation", getInterviewLocation())
             .append("interviewFile", getInterviewFile())
             .append("interviewFeedback", getInterviewFeedback())
             .append("visaResult", getVisaResult())
-            .append("trackingNumber", getTrackingNumber())
             .append("mailingAddress", getMailingAddress())
             .append("createTime", getCreateTime())
             .append("updateTime", getUpdateTime())

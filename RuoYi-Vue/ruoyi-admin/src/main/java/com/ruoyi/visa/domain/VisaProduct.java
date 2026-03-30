@@ -72,7 +72,18 @@ public class VisaProduct extends BaseEntity
     private String districtName;
     private String coverArea;
 
-    public void setId(Long id) 
+    @Excel(name = "是否需要寄送原件", readConverterExp = "0=否,1=是")
+    private Integer isPhysicalRequired;
+
+    public Integer getIsPhysicalRequired() {
+        return isPhysicalRequired;
+    }
+
+    public void setIsPhysicalRequired(Integer isPhysicalRequired) {
+        this.isPhysicalRequired = isPhysicalRequired;
+    }
+
+    public void setId(Long id)
     {
         this.id = id;
     }

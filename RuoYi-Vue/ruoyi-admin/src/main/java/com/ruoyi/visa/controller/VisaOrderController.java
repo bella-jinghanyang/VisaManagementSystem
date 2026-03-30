@@ -136,4 +136,15 @@ public class VisaOrderController extends BaseController
         List<VisaOrder> list = visaOrderService.selectChatUserList();
         return getDataTable(list);
     }
+
+
+    @PreAuthorize("@ss.hasPermi('visa:order:edit')")
+    @Log(title = "签证订单", businessType = BusinessType.UPDATE)
+    @PutMapping("/approve/{id}")
+    public AjaxResult approve(@PathVariable("id") Long id, @RequestBody VisaOrder order) {
+        // 1. 调用你写在 Service 里那个带有“自动化分流”逻辑的方法
+        // 同时也把管理员填写的备注（auditRemark）传进去保存
+        int rows = visaOrderService.approveElectronicMaterials(id, order.getAuditRemark());
+        return toAjax(rows);
+    }
 }
