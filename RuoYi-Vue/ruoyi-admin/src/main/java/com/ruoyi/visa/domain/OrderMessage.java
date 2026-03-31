@@ -38,6 +38,16 @@ public class OrderMessage extends BaseEntity
 
     private String isAi;
 
+    private String orderNo;
+
+    public String getOrderNo() {
+        return orderNo;
+    }
+
+    public void setOrderNo(String orderNo) {
+        this.orderNo = orderNo;
+    }
+
     public String getIsAi() {
         return isAi;
     }

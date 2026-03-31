@@ -211,11 +211,12 @@
       <!-- 弹窗底部：全局决策按钮 -->
       <div slot="footer" class="dialog-footer">
         <template v-if="!isReadOnly">
-          <el-button type="success" size="medium" icon="el-icon-circle-check" @click="submitFirstAudit">初步合格</el-button>
-          <el-button type="danger" size="medium" icon="el-icon-circle-close"
-            @click="executeStatusUpdate(3, '已驳回')">材料驳回</el-button>
+          <!-- 合格：传 true -->
+          <el-button type="success" @click="executeStatusUpdate(true)">初步合格</el-button>
+          <!-- 驳回：传 false -->
+          <el-button type="danger" @click="executeStatusUpdate(false)">材料驳回</el-button>
         </template>
-        <el-button @click="auditOpen = false" size="medium">{{ isReadOnly ? '关 闭' : '取 消' }}</el-button>
+        <el-button @click="auditOpen = false">关 闭</el-button>
       </div>
     </el-dialog>
 
@@ -572,31 +573,39 @@ export default {
       this.executeStatusUpdate(true); // 直接发起通过请求
     },
 
+    /** 3. 执行状态更新 */
     executeStatusUpdate(isPass) {
       const loading = this.$loading({ text: '处理中...' });
 
       if (isPass) {
-        // 情况 A：初审通过 -> 调用专用审批接口
-        // 注意：这里的 URL 要对应你 Controller 新加的路径
-        approveOrder(this.currentOrder.id, { auditRemark: JSON.stringify(this.auditRemarks) }).then(res => {
+        // 【场景 A：合格】
+        // 调用 approveOrder 接口，让后端去判断该去 9 还是去 4/7
+        approveOrder(this.currentOrder.id, {
+          auditRemark: JSON.stringify(this.auditRemarks)
+        }).then(res => {
           loading.close();
-          this.$modal.msgSuccess("初审已通过");
+          this.$modal.msgSuccess("初审合格，已分流至后续环节");
           this.auditOpen = false;
           this.getList();
           this.refreshPhysicalBadge();
-        });
+        }).catch(() => { loading.close(); });
       } else {
-        // 情况 B：驳回 -> 依然可以调通用的 updateOrder 改为状态 3
-        updateOrder({
+        // 【场景 B：驳回】
+        // ★★★ 核心修复：直接调用通用的 updateOrder 接口，明确传 status: 3 ★★★
+        // 此时绝对不能调用 approveOrder 接口！
+        const data = {
           id: this.currentOrder.id,
-          status: 3,
+          status: 3, // 明确设定为 3 (需补交材料)
           auditRemark: JSON.stringify(this.auditRemarks)
-        }).then(() => {
+        };
+
+        updateOrder(data).then(res => {
           loading.close();
-          this.$modal.msgSuccess("已驳回申请");
+          this.$modal.msgSuccess("已驳回申请，请等待用户补交材料");
           this.auditOpen = false;
           this.getList();
-        });
+          this.refreshPhysicalBadge();
+        }).catch(() => { loading.close(); });
       }
     },
 

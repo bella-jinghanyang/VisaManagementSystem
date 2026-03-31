@@ -1,81 +1,67 @@
-// src/assets/styles/element-ui.scss
 @import './variables.scss';
 
 body {
   background-color: $bg-color;
   color: $text-main;
+  -webkit-font-smoothing: antialiased; // 让字体在 Mac/Windows 上都更纤细清晰
 }
 
-/* 1. 奶气十足的按钮 */
+/* 1. 精致感按钮 */
 .el-button {
-  border-radius: 50px !important; /* 彻底变成胶囊形 */
-  border: none;
-  font-weight: 600; /* 字体加粗一点，更可爱 */
-  padding: 12px 28px;
-  letter-spacing: 1px;
-  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); /* Q弹的果冻动画 */
+  border-radius: $radius-button !important;
+  font-weight: 600;
+  padding: 12px 24px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); // 标准的 Material Design 动效
+  border: 1px solid #E2E8F0;
 
   &:hover {
-    transform: translateY(-2px) scale(1.02);
-  }
-  
-  &:active {
-    transform: scale(0.95);
+    transform: translateY(-1px);
+    background-color: #F1F5F9;
   }
 }
 
-/* 主按钮：渐变色 */
+/* 主按钮：纯净蓝色 */
 .el-button--primary {
-  // 从左上到右下的柔和渐变
-  background: linear-gradient(135deg, $primary-color 0%, $primary-hover 100%) !important;
-  box-shadow: 0 6px 15px rgba(106, 175, 230, 0.4); /* 蓝色投影 */
-  
+  background: $primary-color !important;
+  border: none !important;
+  color: #FFFFFF !important;
+  box-shadow: 0 4px 6px -1px rgba(0, 98, 255, 0.2); // 淡淡的同色系投影
+
   &:hover {
-    box-shadow: 0 8px 20px rgba(106, 175, 230, 0.6);
+    background: $primary-hover !important;
+    box-shadow: 0 10px 15px -3px rgba(0, 98, 255, 0.3);
   }
 }
 
-/* 2. 输入框：像云朵一样 */
+/* 2. 输入框：干净、专业 */
 .el-input__inner {
   border-radius: $radius-base;
   background-color: #FFFFFF;
-  border: 2px solid transparent; /* 预留边框位置 */
-  height: 48px; /* 更高一点 */
-  box-shadow: 0 4px 10px rgba(0,0,0,0.03);
+  border: 1.5px solid #E2E8F0; // 浅灰边框
+  height: 46px;
   color: $text-main;
-  transition: all 0.3s ease;
-
-  &:focus {
-    border-color: $primary-hover; // 聚焦变成奶蓝色
-    background-color: #FFFFFF;
-    box-shadow: 0 0 0 4px rgba(106, 175, 230, 0.15); // 柔和的光环
-  }
   
-  &::placeholder {
-    color: #C0C4CC;
+  &:focus {
+    border-color: $primary-color;
+    box-shadow: 0 0 0 3px rgba(0, 98, 255, 0.1); // 极其干净的扩散圈
   }
 }
 
-/* 3. 卡片优化 */
+/* 3. 卡片：去掉厚重感 */
 .el-card {
-  border: none !important;
+  border: 1px solid rgba(226, 232, 240, 0.8) !important;
   border-radius: $radius-card !important;
   background: #FFFFFF;
-  // 这里的阴影用了变量里的蓝光阴影
-  box-shadow: $shadow-base !important; 
+  box-shadow: $shadow-base !important;
+  
+  &:hover {
+    box-shadow: $shadow-hover !important;
+  }
 }
 
-/* 4. 标签 Tag 也要奶一点 */
-.el-tag {
-  border: none;
-  border-radius: 8px;
-  
-  &.el-tag--success {
-    background-color: #E1F3D8;
-    color: #67C23A;
-  }
-  &.el-tag--warning {
-    background-color: #FAECD8;
-    color: #E6A23C;
-  }
+/* 4. 导航栏样式（如果你有的话） */
+.navbar {
+  backdrop-filter: blur(10px); // 毛玻璃效果
+  background: rgba(255, 255, 255, 0.8);
+  border-bottom: 1px solid #E2E8F0;
 }

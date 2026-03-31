@@ -1,20 +1,22 @@
 // 背景色 (Apple 官网经典的浅灰)
 $bg-color: #F7F9FC;;
 
-// 主色调 奶蓝色
-$primary-color: #6AAFE6;  // 主色：清透的奶蓝
-$primary-hover: #8CC5F3;  // 悬浮：更浅一点，像蓝天
-$primary-active: #5396C8; // 点击：稍微深一点
+// 主色调 蓝色
+$primary-color: #51a2ff;  // 主色：清透的奶蓝
+$primary-hover: #8ec5ff;  // 悬浮：更浅一点，像蓝天
+$primary-active: #2b7fff; // 点击：稍微深一点
 
-// 3. 辅助色
-$text-main: #2C3E50;       // 文字不用纯黑，用深蓝灰，更柔和
-$text-secondary: #909399;  // 次要文字
+// --- 辅助背景与文字 ---
+$bg-color: #F8FAFC;         // 带有一丝丝蓝调的浅灰，比纯白更有深度
+$text-main: #0F172A;        // 深石板色 (Slate)，比纯黑更高级
+$text-secondary: #64748B;   // 灰度文字
 
-// 4. 圆角：为了配合奶蓝，圆角要更大，更Q弹
-$radius-base: 16px;  // 输入框圆角
-$radius-card: 24px;  // 卡片圆角
+// --- 几何形态：折中方案 ---
+$radius-base: 12px;         // 恰到好处的圆角，既不幼稚也不生硬
+$radius-card: 20px;         // 卡片稍圆一点，增加亲和力
+$radius-button: 10px;       // 按钮不再是胶囊，但很有肉感
 
-// 5. 阴影：这是精髓！不要用黑色阴影，要用“有颜色的光”
-// 这种阴影会让卡片看起来像是浮在蓝色的光晕上
-$shadow-base: 0 8px 24px rgba(106, 175, 230, 0.12); 
-$shadow-hover: 0 12px 32px rgba(106, 175, 230, 0.20);
+// --- 阴影：细腻的层次感 (摒弃蓝光投影) ---
+// 使用多层阴影技术，模拟真实物理环境，让 UI “浮”起来
+$shadow-base: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+$shadow-hover: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);

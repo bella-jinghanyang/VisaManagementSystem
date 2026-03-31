@@ -2,6 +2,12 @@
   <div class="product-page">
     <div class="container-width">
 
+      <!-- 1. 页面标题区 (新增) -->
+      <div class="page-header">
+        <h1 class="page-title">签证大厅</h1>
+        <p class="page-subtitle">探索全球目的地，获取最专业的代办方案</p>
+      </div>
+
       <!-- 1. 筛选区 (设计成胶囊切换风格) -->
       <div class="filter-section">
         <!-- 国家筛选 -->
@@ -175,8 +181,11 @@ export default {
 @import "@/assets/styles/variables.scss";
 
 .product-page {
-  padding-top: 40px;
-  min-height: 80vh;
+  /* 关键点：padding-top 至少要大于 Navbar 的高度 (80px) + 额外的呼吸间距 */
+  padding-top: 80px;
+  padding-bottom: 80px;
+  min-height: 100vh;
+  background-color: #fbfbfd; // 保持一致的浅灰色背景
 }
 
 /* 筛选区样式 - 胶囊风格 */

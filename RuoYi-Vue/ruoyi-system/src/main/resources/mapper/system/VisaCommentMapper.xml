@@ -17,38 +17,41 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <result property="createTime"    column="create_time"    />
         <result property="customerNickname" column="customer_nickname" />
         <result property="customerAvatar" column="customer_avatar" />
-        <result property="additionalContent" column="additional_content`" />
+        <result property="additionalContent" column="additional_content" />
         <result property="additionalTime" column="additional_time" />
+        <result property="orderNo" column="order_no" />
     </resultMap>
 
     <sql id="selectVisaCommentVo">
         select
             vc.*,
+            o.order_no,
             cus.nickname as customer_nickname,
             cus.avatar as customer_avatar
         from visa_comment vc
                  left join c_customer cus on vc.customer_id = cus.id
+                 left join visa_order o on vc.order_id = o.id
     </sql>
 
     <select id="selectVisaCommentList" parameterType="VisaComment" resultMap="VisaCommentResult">
         <include refid="selectVisaCommentVo"/>
-        <where>  
-            <if test="orderId != null "> and order_id = #{orderId}</if>
-            <if test="productId != null "> and product_id = #{productId}</if>
-            <if test="customerId != null "> and customer_id = #{customerId}</if>
-            <if test="rating != null "> and rating = #{rating}</if>
-            <if test="content != null  and content != ''"> and content = #{content}</if>
-            <if test="images != null  and images != ''"> and images = #{images}</if>
-            <if test="adminReply != null  and adminReply != ''"> and admin_reply = #{adminReply}</if>
-            <if test="replyTime != null "> and reply_time = #{replyTime}</if>
-            <if test="additionalContent != null  and additionalContent != ''"> and additional_content = #{additionalContent}</if>
-            <if test="additionalTime != null "> and additional_time = #{additionalTime}</if>
+        <where>
+            <if test="orderId != null "> and vc.order_id = #{orderId}</if>
+            <if test="productId != null "> and vc.product_id = #{productId}</if>
+            <if test="customerId != null "> and vc.customer_id = #{customerId}</if>
+            <if test="rating != null "> and vc.rating = #{rating}</if>
+            <if test="content != null  and content != ''"> and vc.content = #{content}</if>
+            <if test="images != null  and images != ''"> and vc.images = #{images}</if>
+            <if test="adminReply != null  and adminReply != ''"> and vc.admin_reply = #{adminReply}</if>
+            <if test="replyTime != null "> and vc.reply_time = #{replyTime}</if>
+            <if test="additionalContent != null  and additionalContent != ''"> and vc.additional_content = #{additionalContent}</if>
+            <if test="additionalTime != null "> and vc.additional_time = #{additionalTime}</if>
         </where>
     </select>
     
     <select id="selectVisaCommentById" parameterType="Long" resultMap="VisaCommentResult">
         <include refid="selectVisaCommentVo"/>
-        where id = #{id}
+        where vc.id = #{id}
     </select>
 
     <insert id="insertVisaComment" parameterType="VisaComment" useGeneratedKeys="true" keyProperty="id">

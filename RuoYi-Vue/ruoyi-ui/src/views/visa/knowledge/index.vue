@@ -1,6 +1,6 @@
 <template>
   <div class="app-container">
-    <el-form :model="queryParams" ref="queryForm" size="small" :inline="true" v-show="showSearch" label-width="68px">
+    <el-form :model="queryParams" ref="queryForm" size="small" :inline="true" v-show="showSearch" label-width="100px">
       <el-form-item label="分类" prop="category">
         <el-input
           v-model="queryParams.category"
@@ -71,12 +71,17 @@
 
     <el-table v-loading="loading" :data="knowledgeList" @selection-change="handleSelectionChange">
       <el-table-column type="selection" width="55" align="center" />
-      <el-table-column label="主键ID" align="center" prop="id" />
+      <el-table-column label="ID" align="center" prop="id" />
       <el-table-column label="分类" align="center" prop="category" />
       <el-table-column label="知识点标题" align="center" prop="title" />
       <el-table-column label="搜索关键词" align="center" prop="keywords" />
       <el-table-column label="详细内容" align="center" prop="content" />
-      <el-table-column label="状态(0正常 1停用)" align="center" prop="status" />
+      <el-table-column label="状态" align="center" prop="status">
+        <template slot-scope="scope">
+          <el-switch v-model="scope.row.status" :active-value="0" :inactive-value="1" active-color="#13ce66"
+            inactive-color="#ff4949" @change="handleStatusChange(scope.row)"></el-switch>
+        </template>
+      </el-table-column>
       <el-table-column label="操作" align="center" class-name="small-padding fixed-width">
         <template slot-scope="scope">
           <el-button
@@ -120,6 +125,10 @@
         <el-form-item label="详细内容">
           <editor v-model="form.content" :min-height="192"/>
         </el-form-item>
+        <el-form-item label="状态" prop="status">
+          <el-switch v-model="form.status" :active-value="0" :inactive-value="1" active-text="正常"
+            inactive-text="停用"></el-switch>
+        </el-form-item>
       </el-form>
       <div slot="footer" class="dialog-footer">
         <el-button type="primary" @click="submitForm">确 定</el-button>
@@ -162,7 +171,7 @@ export default {
         title: null,
         keywords: null,
         content: null,
-        status: null,
+        status: 0,
       },
       // 表单参数
       form: {},
@@ -203,7 +212,7 @@ export default {
         title: null,
         keywords: null,
         content: null,
-        status: null,
+        status: 0,
         createTime: null
       }
       this.resetForm("form")
@@ -275,7 +284,20 @@ export default {
       this.download('visa/knowledge/export', {
         ...this.queryParams
       }, `knowledge_${new Date().getTime()}.xlsx`)
-    }
+    },
+    /** 状态修改逻辑 */
+    handleStatusChange(row) {
+      let text = row.status === 0 ? "启用" : "停用";
+      this.$modal.confirm('确认要"' + text + '""' + row.title + '"这一知识点吗？').then(function() {
+        // 调用修改接口，仅同步状态
+        return updateKnowledge({ id: row.id, status: row.status });
+      }).then(() => {
+        this.$modal.msgSuccess(text + "成功");
+      }).catch(function() {
+        // 如果取消或者报错，要把滑块状态拨回去
+        row.status = row.status === 0 ? 1 : 0;
+      });
+    },
   }
 }
 </script>

@@ -13,20 +13,32 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <result property="createTime"    column="create_time"    />
         <result property="customerId" column="customer_id" />
         <result property="isAi" column="is_ai" />
+        <result property="orderNo" column="order_no" />
+
     </resultMap>
 
     <sql id="selectOrderMessageVo">
-        select id, order_id, sender_type, content, image_url, create_time, customer_id, is_ai from order_message
+        select m.id,
+               order_id,
+               sender_type,
+               content,
+               image_url,
+               m.create_time,
+               m.customer_id,
+               is_ai,
+               o.order_no
+        from order_message m
+                 left join visa_order o on m.order_id = o.id
     </sql>
 
     <select id="selectOrderMessageList" parameterType="OrderMessage" resultMap="OrderMessageResult">
         <include refid="selectOrderMessageVo"/>
         <where>  
-            <if test="orderId != null "> and order_id = #{orderId}</if>
-            <if test="senderType != null "> and sender_type = #{senderType}</if>
-            <if test="content != null  and content != ''"> and content = #{content}</if>
-            <if test="imageUrl != null  and imageUrl != ''"> and image_url = #{imageUrl}</if>
-            <if test="customerId != null "> and customer_id = #{customerId}</if>
+            <if test="orderId != null "> and m.order_id = #{orderId}</if>
+            <if test="senderType != null "> and m.sender_type = #{senderType}</if>
+            <if test="content != null  and content != ''"> and m.content = #{content}</if>
+            <if test="imageUrl != null  and imageUrl != ''"> and m.image_url = #{imageUrl}</if>
+            <if test="customerId != null "> and m.customer_id = #{customerId}</if>
              <if test="isAi != null "> and is_ai = #{isAi}</if>
         </where>
     </select>

@@ -86,7 +86,7 @@
       <el-table-column label="总金额" align="center" prop="totalAmount" width="100" />
 
       <!-- 订单状态 9级字典转换 -->
-      <el-table-column label="订单状态" align="center" prop="status" width="150">
+      <el-table-column label="订单状态" align="center" prop="status" width="300">
         <template slot-scope="scope">
           <el-tag :type="getStatusTagType(scope.row.status)">{{ getStatusName(scope.row.status) }}</el-tag>
         </template>
@@ -103,22 +103,23 @@
       <el-table-column label="签证材料" align="center" prop="submittedMaterials" width="100">
         <template slot-scope="scope">
           <el-button size="mini" type="text" icon="el-icon-folder-opened"
-            @click="handleViewMaterials(scope.row.submittedMaterials)">查看配置</el-button>
+            @click="handleViewMaterials(scope.row.submittedMaterials, scope.row)">查看配置</el-button>
         </template>
       </el-table-column>
 
       <el-table-column label="审核反馈" align="center" width="120">
         <template slot-scope="scope">
-          <div v-if="scope.row.auditRemark">
+          <div v-if="hasAuditFeedback(scope.row.auditRemark)">
             <el-button size="mini" type="text" icon="el-icon-chat-line-round"
-              @click="handleViewAuditRecords(scope.row.auditRemark)">查看(已存)</el-button>
+              @click="handleViewAuditRecords(scope.row)">查看反馈</el-button>
           </div>
-          <span v-else class="text-muted">暂无备注</span>
+          <span v-else class="text-muted">暂无反馈</span>
         </template>
       </el-table-column>
-      <el-table-column label="面试预约时间" align="center" prop="interviewTime" width="120">
+
+      <el-table-column label="面试预约时间" align="center" prop="interviewTime" width="160">
         <template slot-scope="scope">
-          <span>{{ parseTime(scope.row.interviewTime, '{y}-{m}-{d}') }}</span>
+          <span>{{ parseTime(scope.row.interviewTime, '{y}-{m}-{d} {h}:{i}:{s}') }}</span>
         </template>
       </el-table-column>
 
@@ -139,28 +140,83 @@
       </el-table-column>
 
       <!-- 面试反馈状态映射 -->
-      <el-table-column label="面试反馈" align="center" prop="interviewFeedback">
+      <el-table-column label="面试反馈" align="center" width="160">
         <template slot-scope="scope">
-          <el-tag v-if="scope.row.interviewFeedback !== null && scope.row.interviewFeedback !== ''"
-            :type="getInterviewFeedbackType(scope.row.interviewFeedback)">
-            {{ getInterviewFeedbackName(scope.row.interviewFeedback) }}
-          </el-tag>
-          <span v-else>-</span>
+          <!-- 判定是否有反馈数据 -->
+          <el-popover v-if="hasInterviewFeedback(scope.row.interviewFeedback)" placement="left" width="350"
+            trigger="hover">
+            <!-- 悬浮窗：展示每位申请人的具体面试反馈 -->
+            <el-table :data="formatInterviewFeedback(scope.row)" size="mini" border stripe>
+              <el-table-column label="申请人" prop="name" width="120" align="center"></el-table-column>
+              <el-table-column label="面试结果" align="center">
+                <template slot-scope="s">
+                  <el-tag :type="getFeedbackTagType(s.row.result)" size="mini">
+                    {{ getFeedbackText(s.row.result) }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+            </el-table>
+
+            <!-- 表格内显示的标签摘要 -->
+            <div slot="reference">
+              <el-tag v-for="(item, i) in parseJson(scope.row.interviewFeedback)" :key="i"
+                :type="getFeedbackTagType(item.result)" size="mini" effect="plain" style="margin: 2px;">
+                {{ getFeedbackText(item.result) }}
+              </el-tag>
+            </div>
+          </el-popover>
+          <span v-else class="text-muted">未反馈</span>
         </template>
       </el-table-column>
 
       <!-- 最终签证结果状态映射 -->
-      <el-table-column label="签证结果" align="center" prop="visaResult">
+      <el-table-column label="签证结果" align="center" width="160">
         <template slot-scope="scope">
-          <el-tag v-if="scope.row.visaResult !== null && scope.row.visaResult !== ''" effect="dark"
-            :type="scope.row.visaResult == 1 ? 'success' : 'danger'">
-            {{ scope.row.visaResult == 1 ? '出签' : (scope.row.visaResult == 2 ? '拒签' : scope.row.visaResult) }}
-          </el-tag>
-          <span v-else>-</span>
+          <!-- 只有当有结果数据时才显示 -->
+          <el-popover v-if="hasVisaResult(scope.row.visaResult)" placement="left" width="400" trigger="hover">
+            <!-- 悬浮窗内容：以表格形式展示每个人的结果 -->
+            <el-table :data="formatVisaResult(scope.row)" size="mini" border stripe>
+              <el-table-column label="申请人" prop="name" width="100" align="center"></el-table-column>
+              <el-table-column label="结果" width="80" align="center">
+                <template slot-scope="s">
+                  <el-tag :type="getResultTagType(s.row.status)" size="mini">
+                    {{ getResultText(s.row.status) }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="凭证" width="80" align="center">
+                <template slot-scope="s">
+                  <div v-if="s.row.fileUrl">
+                    <!-- A. 如果是图片：使用 el-image 自带的预览功能，最直观 -->
+                    <el-image v-if="isImage(s.row.fileUrl)"
+                      style="width: 30px; height: 30px; border-radius: 4px; cursor: pointer; border: 1px solid #eee;"
+                      :src="resolveUrl(s.row.fileUrl)" :preview-src-list="[resolveUrl(s.row.fileUrl)]" append-to-body>
+                      <div slot="error" class="image-slot"><i class="el-icon-picture"></i></div>
+                    </el-image>
+
+                    <!-- B. 如果是文件（如PDF）：显示图标点击打开新窗口 -->
+                    <el-link v-else type="primary" :underline="false" @click="previewFile(s.row.fileUrl)">
+                      <i class="el-icon-document" style="font-size: 20px;"></i>
+                    </el-link>
+                  </div>
+                  <span v-else class="text-muted">-</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="备注" prop="memo" show-overflow-tooltip></el-table-column>
+            </el-table>
+
+            <!-- 表格单元格内显示的简略摘要 -->
+            <div slot="reference" class="result-summary-tags">
+              <el-tag v-for="(item, i) in parseJson(scope.row.visaResult)" :key="i"
+                :type="getResultTagType(item.status)" size="mini" effect="dark" style="margin: 2px;">
+                {{ getResultText(item.status) }}
+              </el-tag>
+            </div>
+          </el-popover>
+          <span v-else class="text-muted">办理中...</span>
         </template>
       </el-table-column>
 
-     
 
       <!-- 地址 JSON 快照查看 -->
       <el-table-column label="收货地址" align="center" prop="mailingAddress" width="100">
@@ -274,33 +330,35 @@
     </el-dialog>
 
     <!-- 2. 材料详情（数组表格式） -->
-    <el-dialog title="用户上传的动态材料" :visible.sync="materialsOpen" width="700px" append-to-body>
-      <el-table :data="currentMaterialsArray" border stripe>
-        <el-table-column type="index" label="序号" width="50" align="center"></el-table-column>
-        <el-table-column label="材料项(Key/Name)" align="center">
+    <el-dialog title="用户上传的材料明细" :visible.sync="materialsOpen" width="850px" append-to-body>
+      <el-table :data="currentMaterialsArray" border stripe height="500px">
+        <el-table-column label="申请人" prop="applicantName" width="120" align="center">
           <template slot-scope="scope">
-            {{ scope.row.key || scope.row.name || '材料明细' }}
+            <el-tag size="small">{{ scope.row.applicantName }}</el-tag>
           </template>
         </el-table-column>
+
+        <el-table-column label="材料项" prop="materialKey" width="150" align="center" />
+
         <el-table-column label="上传内容预览" align="center">
           <template slot-scope="scope">
-            <div v-if="scope.row.url || scope.row.value">
-              <!-- 当存在 URL 时作为文件 -->
-              <div v-if="isValidUrl(scope.row.url || scope.row.value)">
-                <el-image v-if="isImage(scope.row.url || scope.row.value)"
-                  style="width: 50px; height: 50px; border-radius: 4px;"
-                  :src="resolveUrl(scope.row.url || scope.row.value)"
-                  :preview-src-list="[resolveUrl(scope.row.url || scope.row.value)]">
+            <div v-if="scope.row.materialValue">
+              <!-- 判定是否为路径，如果是路径则显示预览/下载 -->
+              <div v-if="isValidUrl(String(scope.row.materialValue))">
+                <el-image v-if="isImage(String(scope.row.materialValue))"
+                  style="width: 80px; height: 60px; border-radius: 4px; border: 1px solid #eee;"
+                  :src="resolveUrl(scope.row.materialValue)" :preview-src-list="[resolveUrl(scope.row.materialValue)]">
                   <div slot="error" class="image-slot"><i class="el-icon-picture-outline"></i></div>
                 </el-image>
-                <el-link v-else type="primary" target="_blank" :href="resolveUrl(scope.row.url || scope.row.value)">
-                  <i class="el-icon-document"></i> 查看附件
+                <el-link v-else type="primary" :underline="false" target="_blank"
+                  :href="resolveUrl(scope.row.materialValue)">
+                  <i class="el-icon-document"></i> 预览/下载文件
                 </el-link>
               </div>
               <!-- 否则显示纯文本内容 -->
-              <span v-else>{{ scope.row.value || scope.row.url }}</span>
+              <span v-else>{{ scope.row.materialValue }}</span>
             </div>
-            <span v-else class="text-muted">未上传</span>
+            <span v-else class="text-muted">未提交</span>
           </template>
         </el-table-column>
       </el-table>
@@ -308,27 +366,18 @@
     </el-dialog>
 
     <!-- 审核记录详情弹窗 -->
-    <el-dialog title="审核备注历史记录" :visible.sync="auditOpen" width="600px" append-to-body>
+    <el-dialog title="审核意见明细" :visible.sync="auditOpen" width="500px" append-to-body>
       <el-table :data="currentAuditRecords" border stripe size="medium">
-        <el-table-column type="index" label="轮次" width="60" align="center" />
-        <el-table-column label="备注说明" prop="text">
+        <!-- 改为显示申请人姓名 -->
+        <el-table-column label="申请人" prop="name" width="120" align="center">
           <template slot-scope="scope">
-            <span style="white-space: pre-wrap;">{{ scope.row.text || '（未填写文字说明）' }}</span>
+            <el-tag size="small" type="info">{{ scope.row.name }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="附件/凭证" align="center" width="150">
+
+        <el-table-column label="反馈意见内容" prop="text">
           <template slot-scope="scope">
-            <div v-if="scope.row.file">
-              <!-- 图片预览 -->
-              <el-image v-if="isImage(scope.row.file)" style="width: 60px; height: 60px; border-radius: 4px;"
-                :src="resolveUrl(scope.row.file)" :preview-src-list="[resolveUrl(scope.row.file)]">
-              </el-image>
-              <!-- 非图片文件预览 -->
-              <el-link v-else type="primary" target="_blank" :href="resolveUrl(scope.row.file)">
-                <i class="el-icon-document"></i> 查看附件
-              </el-link>
-            </div>
-            <span v-else class="text-muted">-</span>
+            <span style="white-space: pre-wrap; color: #606266;">{{ scope.row.text }}</span>
           </template>
         </el-table-column>
       </el-table>
@@ -515,34 +564,79 @@ export default {
       this.snapshotOpen = true;
     },
 
-    /** 解码 JSON 并在弹窗预览（数组类：动态材料） */
-    handleViewMaterials(jsonStr) {
+    /** 解码 JSON 并在弹窗预览（支持多人材料结构） */
+    handleViewMaterials(jsonStr, row) {
       try {
-        let parsed = JSON.parse(jsonStr);
-        // 如果解析出来是对象将转成数组格式方便展示
-        if (parsed && !Array.isArray(parsed) && typeof parsed === 'object') {
-          parsed = Object.keys(parsed).map(k => ({ key: k, value: parsed[k] }));
+        const parsed = JSON.parse(jsonStr);
+        const result = [];
+
+        if (Array.isArray(parsed)) {
+          // 遍历每一位申请人的材料包
+          parsed.forEach((materialsObj, index) => {
+            // 尝试从 row.applicantList 中匹配真实姓名，匹配不到则显示“申请人 n”
+            const applicantName = (row.applicantList && row.applicantList[index])
+              ? row.applicantList[index].name
+              : `申请人 ${index + 1}`;
+
+            // 遍历该申请人名下的所有键值对（材料项）
+            Object.keys(materialsObj).forEach(key => {
+              result.push({
+                applicantName: applicantName, // 申请人姓名
+                materialKey: key,            // 材料名称（如：护照首页）
+                materialValue: materialsObj[key] // 材料内容（路径或文本）
+              });
+            });
+          });
+          this.currentMaterialsArray = result;
+        } else {
+          this.currentMaterialsArray = [];
         }
-        this.currentMaterialsArray = Array.isArray(parsed) ? parsed : [];
       } catch (e) {
-        this.currentMaterialsArray = typeof jsonStr === 'string' && jsonStr.trim() !== '' ? [{ key: '源数据', value: jsonStr }] : [];
+        this.currentMaterialsArray = jsonStr ? [{ applicantName: '-', materialKey: '原始数据', materialValue: jsonStr }] : [];
       }
       this.materialsOpen = true;
     },
 
-    /** 查看审核备注记录 */
-    handleViewAuditRecords(jsonStr) {
-      if (!jsonStr) {
-        this.currentAuditRecords = [];
-      } else {
-        try {
-          const parsed = JSON.parse(jsonStr);
-          // 如果解析出来是数组直接赋值，如果是单个对象转为数组
-          this.currentAuditRecords = Array.isArray(parsed) ? parsed : [parsed];
-        } catch (e) {
-          // 兼容旧数据：如果不是JSON格式（纯文本），则手动构造
-          this.currentAuditRecords = [{ text: jsonStr, file: '' }];
+    hasAuditFeedback(jsonStr) {
+      if (!jsonStr || jsonStr === '[]') return false;
+      try {
+        const arr = JSON.parse(jsonStr);
+        if (Array.isArray(arr)) {
+          // 只要有一个人的 text 字段不为空，就返回 true
+          return arr.some(item => item.text && item.text.trim() !== '');
         }
+        return false;
+      } catch (e) {
+        // 如果是老版本的纯文本格式，直接判断
+        return !!jsonStr && jsonStr !== '[]';
+      }
+    },
+
+    /** 查看审核备注记录 */
+    handleViewAuditRecords(row) {
+      const jsonStr = row.auditRemark;
+      const applicants = row.applicantList || [];
+      const result = [];
+
+      try {
+        const parsed = JSON.parse(jsonStr);
+        if (Array.isArray(parsed)) {
+          parsed.forEach((item, index) => {
+            // 只收集有文字内容的反馈
+            if (item.text && item.text.trim() !== '') {
+              result.push({
+                name: applicants[index] ? applicants[index].name : `申请人 ${index + 1}`,
+                text: item.text
+              });
+            }
+          });
+          this.currentAuditRecords = result;
+        } else {
+          this.currentAuditRecords = [];
+        }
+      } catch (e) {
+        // 兼容处理老数据
+        this.currentAuditRecords = jsonStr ? [{ name: '总体反馈', text: jsonStr }] : [];
       }
       this.auditOpen = true;
     },
@@ -558,6 +652,80 @@ export default {
       // 如果没有申请人信息，返回占位符
       return "未填写";
     },
+
+    /** 判断是否有结果数据 */
+    hasVisaResult(jsonStr) {
+      return jsonStr && jsonStr !== '[]' && jsonStr !== '';
+    },
+
+    /** ★ 核心：格式化结果数据，将姓名和结果 JSON 对应起来 ★ */
+    formatVisaResult(row) {
+      const results = this.parseJson(row.visaResult);
+      const applicants = row.applicantList || [];
+      
+      return results.map((res, index) => {
+        return {
+          name: applicants[index] ? applicants[index].name : `申请人 ${index + 1}`,
+          status: res.status,
+          fileUrl: res.fileUrl,
+          memo: res.memo || '-'
+        };
+      });
+    },
+
+     /** 结果标签类型 */
+    getResultTagType(status) {
+      const map = { 1: 'success', 2: 'danger', 3: 'warning' };
+      return map[status] || 'info';
+    },
+
+    /** 结果文字转换 */
+    getResultText(status) {
+      const map = { 1: '获签', 2: '拒签', 3: 'Check' };
+      return map[status] || '处理中';
+    },
+
+    /** 判断面试反馈是否有数据 */
+    hasInterviewFeedback(jsonStr) {
+      return jsonStr && jsonStr !== '[]' && jsonStr !== '';
+    },
+
+    /** ★ 核心：格式化面试反馈，对齐申请人姓名 ★ */
+    formatInterviewFeedback(row) {
+      const feedbacks = this.parseJson(row.interviewFeedback);
+      const applicants = row.applicantList || [];
+      
+      return feedbacks.map((item, index) => {
+        return {
+          // 对齐姓名
+          name: applicants[index] ? applicants[index].name : `申请人 ${index + 1}`,
+          // 注意：C端提交的字段名通常是 result
+          result: item.result 
+        };
+      });
+    },
+
+    /** 面试反馈标签颜色 */
+    getFeedbackTagType(status) {
+      const map = { 1: 'success', 2: 'danger', 3: 'warning' };
+      return map[status] || 'info';
+    },
+
+    /** 面试反馈文字转换 */
+    getFeedbackText(status) {
+      const map = { 1: '过签', 2: '拒签', 3: '被Check' };
+      return map[status] || '未反馈';
+    },
+    
+    // 确保之前的 parseJson 方法还在：
+    parseJson(json) {
+      try {
+        return JSON.parse(json || '[]');
+      } catch (e) {
+        return [];
+      }
+    },
+
 
 
     /** 基本增删改查保持不变 */
@@ -646,7 +814,16 @@ export default {
       this.download('visa/order/export', {
         ...this.queryParams
       }, `order_${new Date().getTime()}.xlsx`)
-    }
+    },
+
+    parseJson(json) {
+      try {
+        // 关键：如果 json 是空的或者格式不对，返回空数组，防止 v-for 报错
+        return JSON.parse(json || '[]');
+      } catch (e) {
+        return [];
+      }
+    },
   }
 }
 </script>

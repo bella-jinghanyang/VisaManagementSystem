@@ -1145,6 +1145,7 @@ export default {
 }
 
 .page-header {
+  padding-top: 80px;
   margin-bottom: 30px;
   display: flex;
   justify-content: space-between;

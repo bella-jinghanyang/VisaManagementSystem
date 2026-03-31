@@ -66,6 +66,15 @@ public class VisaComment extends BaseEntity
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private Date additionalTime;      // 追加时间
 
+    private String orderNo;
+
+    public String getOrderNo() {
+        return orderNo;
+    }
+    public void setOrderNo(String orderNo) {
+        this.orderNo = orderNo;
+    }
+
     public String getAdditionalContent() {
         return additionalContent;
     }

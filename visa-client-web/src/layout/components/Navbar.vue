@@ -1,9 +1,10 @@
 <template>
   <div :class="['glass-nav', { 'is-transparent': isTransparent && isHomePage }]">
     <div class="nav-content">
-      <!-- LOGO -->
+      <!-- LOGO 部分 -->
       <div class="logo">
-        <i class="el-icon-s-promotion" style="color: #6AAFE6; margin-right: 8px;"></i>
+        <!-- 颜色跟随主题色 -->
+        <i class="el-icon-s-promotion icon-brand"></i>
         <span>Global Visa</span>
       </div>
 
@@ -191,126 +192,143 @@ export default {
 </script>
 
 <style scoped lang="scss">
-// 引入变量
+/* 引入变量 */
 @import "@/assets/styles/variables.scss";
 
 .glass-nav {
   position: fixed;
-  top: 0; left: 0; width: 100%; height: 70px;
-  z-index: 999;
+  top: 0; left: 0; width: 100%; height: 72px;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   
-  /* 滚动后的奶蓝毛玻璃样式 */
-  background: rgba(255, 255, 255, 0.8);
+  /* --- 状态 A: 滚动后（白色磨砂质感） --- */
+  background: rgba(255, 255, 255, 0.85);
   backdrop-filter: saturate(180%) blur(20px);
-  box-shadow: 0 4px 15px rgba(106, 175, 230, 0.1);
-  border-bottom: 1px solid rgba(106, 175, 230, 0.1);
-  transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1); // 平滑过渡
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
 
-  /* ★★★ 核心：透明融合态样式 ★★★ */
+  .logo, .nav-item, .username, .cart-btn i {
+    color: #0f172a; // 使用深石板色
+  }
+
+  /* --- 状态 B: 首页顶部透明态 (is-transparent) --- */
   &.is-transparent {
     background: transparent !important;
     backdrop-filter: blur(0) !important;
     box-shadow: none !important;
-    border-bottom: none !important;
+    border-bottom: 1px solid transparent !important;
+    height: 80px; // 顶部时稍微宽一点，更大气
     
-    /* 此时可以让文字颜色变成纯白，以便在背景图上更清晰 */
-    .logo, .nav-item { color: #ffffff; }
-    .nav-item::after { background: #ffffff; box-shadow: 0 0 10px #fff; }
+    /* 
+       关键修改：
+       因为你的背景现在是浅色（白色/浅灰），所以文字不能是白色！
+       我们要用深色文字，或者主色调文字。
+    */
+    .logo { color: #0f172a; }
+    .nav-item { color: #475569; } // 稍淡一点的灰色
+    .username { color: #475569; }
+    .cart-btn i { color: #475569; }
+
+    /* 如果你觉得还是不清晰，可以给文字加极淡的文字阴影，或者给Nav加一层极其微弱的顶部渐变（可选） */
   }
 }
 
 .nav-content {
   width: 1200px;
   margin: 0 auto;
-  height: 100%;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  padding: 0 20px;
 }
 
+/* Logo 样式 */
 .logo {
-  font-size: 22px;
+  font-size: 20px;
   font-weight: 800;
-  color: $text-main;
+  letter-spacing: 1px;
   display: flex;
   align-items: center;
+  text-transform: uppercase; // 品牌名大写更高级
+  
+  .icon-brand {
+    color: $primary-color !important; // 使用你新定的科技蓝
+    margin-right: 10px;
+    font-size: 24px;
+  }
 }
 
-.nav-item {
-  margin: 0 20px;
-  text-decoration: none;
-  color: $text-secondary;
-  font-weight: 500;
-  font-size: 16px;
-  position: relative;
-  transition: color 0.3s;
+/* 导航项 */
+.menu {
+  display: flex;
+  align-items: center;
+  
+  .nav-item {
+    margin: 0 18px;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 15px;
+    position: relative;
+    transition: all 0.3s ease;
 
-  &:hover {
-    color: $primary-color;
-  }
+    &:hover {
+      color: $primary-color !important;
+    }
 
-  /* 选中状态下，底部出现一个小圆点 */
-  &.router-link-active {
-    color: $text-main;
-    font-weight: 700;
-
-    &::after {
-      content: '';
-      position: absolute;
-      bottom: -10px;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 6px;
-      height: 6px;
-      background: $primary-color;
-      border-radius: 50%;
-      box-shadow: 0 0 10px $primary-color;
+    &.router-link-active {
+      color: $primary-color !important;
+      &::after {
+        content: '';
+        position: absolute;
+        bottom: -8px; left: 50%;
+        transform: translateX(-50%);
+        width: 4px; height: 4px;
+        background: $primary-color;
+        border-radius: 50%;
+      }
     }
   }
 }
 
+/* 用户区域 */
 .user-area {
   display: flex;
   align-items: center;
-  cursor: pointer;
+  
+  .cart-btn {
+    margin-right: 20px;
+    i { font-size: 20px; transition: color 0.3s; }
+    &:hover i { color: $primary-color; }
+  }
 
   .username {
-    margin-right: 12px;
     font-size: 14px;
-    font-weight: 500;
-    color: #333;
+    margin-right: 12px;
+    font-weight: 600;
   }
 
   .avatar {
     border: 2px solid #fff;
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-    transition: transform 0.3s;
-
-    &:hover {
-      transform: scale(1.1);
-    }
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    cursor: pointer;
+    transition: transform 0.3s ease;
+    &:hover { transform: translateY(-2px); }
   }
 }
 
-.cart-btn {
-  margin-right: 25px;
-  cursor: pointer;
-
-  transition: all 0.3s ease;
-
-  &:hover {
-    transform: scale(1.1); // 鼠标移上去轻轻放大
-    opacity: 0.8;
-  }
-
-  &:active {
-    transform: scale(0.9); // 点击时微微缩小，有物理按压感
-  }
+/* 登录按钮在透明态下的适配 */
+.glass-nav.is-transparent .el-button--primary {
+  background: $primary-color !important;
+  border-color: $primary-color !important;
+  box-shadow: 0 4px 12px rgba(0, 98, 255, 0.2);
 }
 
-/* 调整角标颜色为奶蓝主题色 */
+/* 角标样式微调 */
 ::v-deep .el-badge__content {
-
+  background-color: $primary-color; // 角标用主色
   border: none;
+  font-family: Arial;
 }
 </style>
