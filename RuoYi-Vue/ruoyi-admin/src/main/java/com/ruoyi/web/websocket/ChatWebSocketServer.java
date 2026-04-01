@@ -44,51 +44,68 @@ public class ChatWebSocketServer {
 
         try {
             JSONObject json = JSON.parseObject(message);
-            String toUserId = json.getString("toUserId"); // 接收者
-            String content = json.getString("content");   // 内容
-            Long orderId = json.getLong("orderId");       // 关联的订单ID
+            String toUserId = json.getString("toUserId");
+            String content = json.getString("content");
+            Long orderId = json.getLong("orderId");
+            if (orderId == null) orderId = 0L;
 
-            // 1. 注入发送者ID，确保B端前端收到消息后知道是谁发的
+            // ★★★ 核心逻辑：分流判定 ★★★
+            String isAiFlag = "0"; // 默认判定为人工
+
+            if (!"admin".equals(userId)) {
+                // 如果发送者是客户
+                if (orderId > 0) {
+                    // 情况 1：带订单号咨询。强制设为“人工”，不触发 AI
+                    isAiFlag = "0";
+                } else {
+                    // 情况 2：不带订单号咨询。判定为“智能助手”消息
+                    isAiFlag = "1";
+                }
+            } else {
+                // 情况 3：管理员回复。永远是“人工”
+                isAiFlag = "0";
+            }
+
+            // 1. 注入发送者ID
             json.put("fromUserId", userId);
+            json.put("isAi", isAiFlag);
 
-            // 2. 转发逻辑
+            // 2. 转发逻辑 (实时推送)
             Session toSession = sessionPool.get(toUserId);
             if (toSession != null && toSession.isOpen()) {
                 toSession.getAsyncRemote().sendText(json.toJSONString());
             }
 
-            // 3. ★★★ 核心存储逻辑：解决身份隔离与记录保存 ★★★
+            // 3. 构造数据库存储对象
             OrderMessage orderMsg = new OrderMessage();
             orderMsg.setContent(content);
-            orderMsg.setOrderId(orderId != null ? orderId : 0L);
+            orderMsg.setOrderId(orderId);
+            orderMsg.setIsAi(isAiFlag); // ★ 标记这一条是 AI 还是 人工
             orderMsg.setCreateTime(com.ruoyi.common.utils.DateUtils.getNowDate());
 
-            // --- 关键判断：这笔消息属于哪个客户的“聊天档案” ---
+            // 处理客户归属逻辑 (保持你之前的逻辑)
             if ("admin".equals(userId)) {
-                // 情况A：发送者是管理员 -> 说明是管理员在回复
-                // 此时消息应该归属于【接收者】对应的客户档案
-                orderMsg.setSenderType(2); // 2代表管理员
-                try {
-                    // 如果接收者是guest，存0；否则存对应的数字ID
-                    orderMsg.setCustomerId("guest".equals(toUserId) ? 0L : Long.valueOf(toUserId));
-                } catch (Exception e) {
-                    orderMsg.setCustomerId(0L); // 兜底
-                }
+                orderMsg.setSenderType(2);
+                orderMsg.setCustomerId("guest".equals(toUserId) ? 0L : Long.valueOf(toUserId));
             } else {
-                // 情况B：发送者不是管理员 -> 说明是客户在咨询
-                // 此时消息归属于【发送者】自己
-                orderMsg.setSenderType(1); // 1代表客户
-                try {
-                    orderMsg.setCustomerId("guest".equals(userId) ? 0L : Long.valueOf(userId));
-                } catch (Exception e) {
-                    orderMsg.setCustomerId(0L);
-                }
+                orderMsg.setSenderType(1);
+                orderMsg.setCustomerId("guest".equals(userId) ? 0L : Long.valueOf(userId));
             }
 
-            // 4. 保存到数据库
-            // 只要有了 customerId 和 orderId，两端查询历史记录时加上这两个条件过滤，
-            // 就能实现不同人的聊天记录完全隔离！
+            // 4. 保存原始消息到数据库
             messageService.insertOrderMessage(orderMsg);
+
+            // ★★★ 5. AI 自动回复逻辑 ★★★
+            if ("1".equals(isAiFlag)) {
+                // 只有当 orderId 为 0 (非专属顾问模式) 且标记为 AI 时，才调用 AI 服务
+                System.out.println(">>> 触发智能助手回复逻辑...");
+
+                // 这里调用你之前的 AI 回复方法 (假设方法名为 handleAiReply)
+                // 你需要确保该方法会产生一个新的消息包发回给客户
+                // handleAiReply(userId, content);
+            } else {
+                System.out.println(">>> 专属顾问模式/管理员回复，不触发 AI");
+            }
 
         } catch (Exception e) {
             System.err.println("WebSocket消息处理失败: " + e.getMessage());

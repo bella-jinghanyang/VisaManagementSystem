@@ -14,6 +14,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <result property="customerId" column="customer_id" />
         <result property="isAi" column="is_ai" />
         <result property="orderNo" column="order_no" />
+        <result property="nickname"    column="nickname"    />
 
     </resultMap>
 
@@ -25,10 +26,12 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
                image_url,
                m.create_time,
                m.customer_id,
+               c.nickname,
                is_ai,
                o.order_no
         from order_message m
                  left join visa_order o on m.order_id = o.id
+                left join c_customer c on m.customer_id = c.id
     </sql>
 
     <select id="selectOrderMessageList" parameterType="OrderMessage" resultMap="OrderMessageResult">

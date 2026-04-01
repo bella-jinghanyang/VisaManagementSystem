@@ -81,7 +81,7 @@
 export default {
   data() {
     return {
-      heroImageUrl: require('@/assets/images/main1.jpg'),
+      heroImageUrl: require('@/assets/images/hero-right.jpg'),
       flowSteps: [
         { 
           title: '提交订单', desc: '在 Global Visa 平台选择目的地及签证类型，填写基础意向并一键下单。', 
@@ -91,27 +91,27 @@ export default {
         { 
           title: '递交材料', desc: '根据系统生成的动态清单，在线上传电子版扫描件，无需寄送原件至初审阶段。', 
           icon: 'el-icon-upload2',
-          bgImage: 'https://images.unsplash.com/photo-1544731612-de7f96afe55f?q=80&w=400&auto=format'
+          bgImage: require('@/assets/images/step2.jpg') 
         },
         { 
           title: '专家审核', desc: 'Global Visa 资深办签员进行人工双重核验，确保材料完全符合领事馆最新政策。', 
           icon: 'el-icon-set-up',
-          bgImage: 'https://images.unsplash.com/photo-1450101499163-c8848c66ca85?q=80&w=400&auto=format'
+          bgImage: require('@/assets/images/step3.jpg') 
         },
         { 
           title: '使馆送签', desc: '我们将您的护照及相关文件安全送达大使馆，并在系统中实时更新受理节点。', 
           icon: 'el-icon-office-building',
-          bgImage: 'https://images.unsplash.com/photo-1520175480921-4edfa0683001?q=80&w=400&auto=format'
+          bgImage: require('@/assets/images/step4.jpg') 
         },
         { 
           title: '出签反馈', desc: '第一时间同步使馆签发动态，您可以在用户中心查阅签证电子联。', 
           icon: 'el-icon-circle-check',
-          bgImage: 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?q=80&w=400&auto=format'
+          bgImage: require('@/assets/images/step5.jpg')
         },
         { 
           title: '极速配送', desc: '证件原件由顺丰安全寄回，全流程保险覆盖，让证件安全交还至您手中。', 
           icon: 'el-icon-truck',
-          bgImage: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?q=80&w=400&auto=format'
+          bgImage: require('@/assets/images/step6.jpg')
         }
       ]
     }

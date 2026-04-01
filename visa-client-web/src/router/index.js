@@ -56,6 +56,12 @@ const routes = [
         name: 'AiChat',
         component: () => import('@/views/ai/index.vue'),
         meta: { title: '智能助手' }
+      },
+      {
+        path: 'specialist-chat',
+        name: 'SpecialistChat',
+        component: () => import('@/views/SpecialistChat.vue'),
+        meta: { title: '专属签证顾问' }
       }
 
     ]

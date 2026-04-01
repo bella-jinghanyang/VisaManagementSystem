@@ -3,6 +3,7 @@ package com.ruoyi.visa.controller;
 import java.util.List;
 import javax.servlet.http.HttpServletResponse;
 
+import com.ruoyi.common.annotation.Anonymous;
 import com.ruoyi.visa.domain.OrderMessage;
 import com.ruoyi.visa.service.IOrderMessageService;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -105,6 +106,7 @@ public class VisaOrderController extends BaseController
     /**
      * 获取聊天历史 (管理员专用版)
      */
+    @Anonymous
     @GetMapping("/chat/history")
     public AjaxResult getChatHistory(
             @RequestParam(value = "orderId", required = false) Long orderId,

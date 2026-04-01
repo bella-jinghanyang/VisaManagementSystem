@@ -1,6 +1,8 @@
 package com.ruoyi.visa.service;
 
 import java.util.List;
+
+import com.ruoyi.visa.domain.VisaDashBoard;
 import com.ruoyi.visa.domain.VisaOrder;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -82,4 +84,5 @@ public interface IVisaOrderService
      */
     public int approveElectronicMaterials(Long orderId, String auditRemark);
 
+    VisaDashBoard getIndexData();
 }

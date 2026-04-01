@@ -27,6 +27,7 @@
     </el-form>
 
     <el-row :gutter="10" class="mb8">
+
       <el-col :span="1.5">
         <el-button type="primary" plain icon="el-icon-plus" size="mini" @click="handleAdd"
           v-hasPermi="['visa:order:add']">新增</el-button>
@@ -226,12 +227,14 @@
         </template>
       </el-table-column>
 
-      <el-table-column label="操作" align="center" class-name="small-padding fixed-width" width="150" fixed="right">
+      <el-table-column label="操作" align="center" class-name="small-padding fixed-width" width="200" fixed="right">
         <template slot-scope="scope">
           <el-button size="mini" type="text" icon="el-icon-edit" @click="handleUpdate(scope.row)"
             v-hasPermi="['visa:order:edit']">修改</el-button>
           <el-button size="mini" type="text" icon="el-icon-delete" @click="handleDelete(scope.row)"
             v-hasPermi="['visa:order:remove']">删除</el-button>
+          <el-button size="mini" type="text" icon="el-icon-chat-dot-round"
+            @click="handleContactCustomer(scope.row)">联系客户</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -278,7 +281,7 @@
           <el-date-picker clearable v-model="form.interviewTime" type="date" value-format="yyyy-MM-dd"
             placeholder="请选择面试时间"></el-date-picker>
         </el-form-item>
-        
+
         <el-form-item label="面试预约单" prop="interviewFile">
           <file-upload v-model="form.interviewFile" />
         </el-form-item>
@@ -662,7 +665,7 @@ export default {
     formatVisaResult(row) {
       const results = this.parseJson(row.visaResult);
       const applicants = row.applicantList || [];
-      
+
       return results.map((res, index) => {
         return {
           name: applicants[index] ? applicants[index].name : `申请人 ${index + 1}`,
@@ -673,7 +676,7 @@ export default {
       });
     },
 
-     /** 结果标签类型 */
+    /** 结果标签类型 */
     getResultTagType(status) {
       const map = { 1: 'success', 2: 'danger', 3: 'warning' };
       return map[status] || 'info';
@@ -694,13 +697,13 @@ export default {
     formatInterviewFeedback(row) {
       const feedbacks = this.parseJson(row.interviewFeedback);
       const applicants = row.applicantList || [];
-      
+
       return feedbacks.map((item, index) => {
         return {
           // 对齐姓名
           name: applicants[index] ? applicants[index].name : `申请人 ${index + 1}`,
           // 注意：C端提交的字段名通常是 result
-          result: item.result 
+          result: item.result
         };
       });
     },
@@ -716,7 +719,7 @@ export default {
       const map = { 1: '过签', 2: '拒签', 3: '被Check' };
       return map[status] || '未反馈';
     },
-    
+
     // 确保之前的 parseJson 方法还在：
     parseJson(json) {
       try {
@@ -724,6 +727,22 @@ export default {
       } catch (e) {
         return [];
       }
+    },
+
+    handleContactCustomer(row) {
+      // 获取客户真实姓名（复用你之前的 getCustomerName 方法）
+      const name = this.getCustomerName(row.customerId);
+
+      // 跳转到客服中心路由，并携带 客户ID、订单ID、订单号、姓名
+      this.$router.push({
+        path: '/chat', // ★ 请确保这里的路径和你路由定义的客服中心路径一致
+        query: {
+          customerId: row.customerId,
+          orderId: row.id,
+          orderNo: row.orderNo,
+          nickname: name
+        }
+      });
     },
 
 

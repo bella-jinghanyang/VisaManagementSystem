@@ -1,30 +1,23 @@
 package com.ruoyi.visa.service.impl;
 
+import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import com.alibaba.fastjson2.JSON;
-import com.ruoyi.common.annotation.Log;
-import com.ruoyi.common.core.domain.AjaxResult;
-import com.ruoyi.common.enums.BusinessType;
 import com.ruoyi.common.utils.DateUtils;
 import com.ruoyi.common.utils.StringUtils;
-import com.ruoyi.visa.domain.VisaOrderApplicant;
-import com.ruoyi.visa.domain.VisaOrderLogistics;
-import com.ruoyi.visa.domain.VisaProduct;
+import com.ruoyi.visa.domain.*;
 import com.ruoyi.visa.mapper.VisaOrderApplicantMapper;
 import com.ruoyi.visa.mapper.VisaOrderLogisticsMapper;
 import com.ruoyi.visa.service.IVisaProductService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import com.ruoyi.visa.mapper.VisaOrderMapper;
-import com.ruoyi.visa.domain.VisaOrder;
 import com.ruoyi.visa.service.IVisaOrderService;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 
 
 /**
@@ -288,6 +281,41 @@ public class VisaOrderServiceImpl implements IVisaOrderService
         // logisticsMapper.updateReceiveTimeByOrderId(orderId, new Date());
 
         return 1;
+    }
+
+    @Override
+    public VisaDashBoard getIndexData() {
+        VisaDashBoard dto = new VisaDashBoard();
+
+        // 1. 获取基础统计
+        Map<String, Object> stats = visaOrderMapper.selectIndexStats();
+        dto.setPendingReview((Long) stats.get("pendingReview"));
+        dto.setPendingPhysical((Long) stats.get("pendingPhysical"));
+        dto.setMonthlyRevenue(new BigDecimal(stats.get("monthlyRevenue").toString()));
+        dto.setAvgRating(Double.parseDouble(stats.get("avgRating").toString()));
+
+        // 2. 组装漏斗图（将数据库算出的Count转为前端百分比或数值）
+        List<Map<String, Object>> funnel = new ArrayList<>();
+        funnel.add(createMap("下单数", stats.get("totalCount")));
+        funnel.add(createMap("已支付", stats.get("paidCount")));
+        funnel.add(createMap("材料已交", stats.get("materialsCount")));
+        funnel.add(createMap("已出签", stats.get("finishedCount")));
+        dto.setFunnelData(funnel);
+
+        // 3. 热门目的地
+        dto.setPieData(visaOrderMapper.selectTopDestinations());
+
+        // 4. 预警列表
+        dto.setWarningOrders(visaOrderMapper.selectWarningOrders());
+
+        return dto;
+    }
+
+    private Map<String, Object> createMap(String name, Object value) {
+        Map<String, Object> map = new HashMap<>();
+        map.put("name", name);
+        map.put("value", value);
+        return map;
     }
 
 

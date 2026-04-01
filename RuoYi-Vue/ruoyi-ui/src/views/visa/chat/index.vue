@@ -17,7 +17,7 @@
               <div class="user-info">
                 <!-- 第一行：显示客户名 -->
                 <div class="username">{{ user.nickname }}</div>
-                <!-- ★ 新增第二行：显示关联的订单号 ★ -->
+                <!-- 第二行：显示关联的订单号 -->
                 <div class="order-tag" v-if="user.orderNo">
                   <el-tag size="mini" type="warning">单: {{ user.orderNo }}</el-tag>
                 </div>
@@ -72,8 +72,6 @@
       </el-col>
     </el-row>
 
-    <!-- 在 chat/index.vue 的最后面添加 -->
-
     <el-dialog title="关联订单详情" :visible.sync="orderDetailOpen" width="800px" append-to-body>
       <div v-if="orderDetail.id">
         <!-- 1. 订单状态概览 -->
@@ -85,14 +83,36 @@
         <!-- 2. 复用之前的申请人材料展示逻辑 -->
         <div v-for="(person, idx) in parseMaterials(orderDetail.submittedMaterials)" :key="idx" class="person-box"
           style="margin-bottom: 20px; border: 1px solid #eee; padding: 15px; border-radius: 8px;">
-          <div style="font-weight: bold; margin-bottom: 10px; color: #409EFF;">申请人 {{ idx + 1 }}</div>
+          <div style="font-weight: bold; margin-bottom: 10px; color: #409EFF; font-size: 15px;">
+            <i class="el-icon-user"></i>
+            {{ (orderDetail.applicantList && orderDetail.applicantList[idx]) ? orderDetail.applicantList[idx].name :
+              '申请人 ' + (idx + 1) }}
+
+            <!-- 顺便显示一下身份标签，更专业 -->
+            <el-tag v-if="orderDetail.applicantList && orderDetail.applicantList[idx]" size="mini" type="info"
+              effect="plain" style="margin-left: 10px; border:none;">
+              {{ getIdentityLabel(orderDetail.applicantList[idx].identity) }}
+            </el-tag>
+          </div>
           <el-descriptions border :column="1" size="small">
             <el-descriptions-item v-for="(val, key) in person" :key="key" :label="key">
+              <!-- 1. 如果是图片：直接显示缩略图 -->
               <div v-if="isImage(val)">
                 <el-image :src="getUrl(val)" :preview-src-list="[getUrl(val)]"
-                  style="width: 100px; height: 70px"></el-image>
+                  style="width: 100px; height: 70px; border-radius: 4px; border: 1px solid #eee; cursor: zoom-in;">
+                </el-image>
               </div>
-              <div v-else>{{ val }}</div>
+
+              <!-- 2. ★ 新增：如果是文件路径 (如 PDF, Doc) ★ -->
+              <!-- 逻辑：如果不是图片，但包含 /profile/upload 路径，则渲染为可点击的链接 -->
+              <div v-else-if="val && val.toString().indexOf('/profile/upload') > -1">
+                <el-link type="primary" :underline="false" @click="previewFile(val)">
+                  <i class="el-icon-document"></i> 预览/下载文件
+                </el-link>
+              </div>
+
+              <!-- 3. 如果是普通文字：直接显示 -->
+              <div v-else>{{ val || '-' }}</div>
             </el-descriptions-item>
           </el-descriptions>
 
@@ -113,6 +133,7 @@
 </template>
 
 <script>
+/* eslint-disable */
 import request from '@/utils/request';
 
 export default {
@@ -120,68 +141,69 @@ export default {
   data() {
     return {
       socket: null,
-      userList: [], // 模拟正在聊天的用户列表
+      userList: [],
       currentSessionId: null,
       currentUserName: '',
       messageList: [],
       inputText: '',
-      // 管理员 ID 写死为 admin
       adminId: 'admin',
-      orderDetailOpen: false,
-      orderDetail: {}, // 存放查出来的订单详情
+
+      // ★★★ 必须显式初始化这些变量，解决模板渲染报错 ★★★
+      currentUserId: null,
+      currentOrderId: 0,
+      currentOrderNo: '',
+
       orderDetailOpen: false,
       orderDetail: {},
-      // 新增状态映射
       statusMap: {
-        0: '待支付',
-        1: '已支付',
-        2: '资料审核中',
-        3: '办理中',
-        4: '已完成',
-        5: '已退款'
-      }
+        0: '待支付', 1: '待上传', 2: '审核中', 3: '需补交',
+        4: '办理中', 5: '待收货', 6: '已完成'
+      },
 
+      // 其他辅助
+      uploadUrl: process.env.VUE_APP_BASE_API + "/common/upload",
+      headers: { Authorization: "Bearer " + localStorage.getItem('Admin-Token') },
+      applicantListInDialog: []
     };
   },
-  mounted() {
+  async mounted() {
+    // 1. 【核心修改】先连接 WebSocket，保证“管道”第一时间通畅
     this.initWebSocket();
-    this.loadChatUsers();
+
+    // 2. 加载用户列表
+    await this.loadChatUsers();
+
+    // 3. 处理从“订单管理”主动跳转过来的逻辑
     const q = this.$route.query;
-    if (q.customerId) {
-      this.handleSelectUser({
-        id: q.customerId,
-        orderId: q.orderId,
-        combinedId: q.customerId + '-' + q.orderId,
-        nickname: '客户 ' + q.customerId,
-        orderNo: q.orderNo
-      });
+    if (q.customerId && q.orderId) {
+      console.log("检测到主动联系请求:", q);
+      const combinedId = q.customerId + '-' + q.orderId;
+      const existUser = this.userList.find(u => u.combinedId === combinedId);
+
+      if (existUser) {
+        this.handleSelectUser(existUser);
+      } else {
+        // 列表里没有，手动创建一个“虚拟节点”塞进去，让客服能直接发消息
+        const tempUser = {
+          id: parseInt(q.customerId),
+          orderId: parseInt(q.orderId),
+          orderNo: q.orderNo,
+          nickname: q.nickname || ('客户 ' + q.customerId),
+          lastMsg: '--- 准备发起新沟通 ---',
+          combinedId: combinedId,
+          unread: false
+        };
+        this.userList.unshift(tempUser);
+        this.handleSelectUser(tempUser);
+      }
     }
   },
   beforeDestroy() {
     if (this.socket) this.socket.close();
   },
   methods: {
-    handleSelectUser(user) {
-      this.currentSessionId = user.combinedId;
-      this.currentUserId = user.customerId;
-      this.currentUserName = user.customerName;
-      this.currentOrderId = user.orderId;
-      this.currentOrderNo = user.orderNo; // 从 SQL 查出来的单号
-
-      // 加载历史记录时带上双重过滤
-      request({
-        url: '/visa/order/chat/history',
-        params: {
-          orderId: user.orderId,
-          customerId: user.customerId,
-          isAi: '0'
-        }
-      }).then(res => {
-        this.messageList = res.data;
-      });
-    },
     initWebSocket() {
-      // 连接地址对应后端的 @ServerEndpoint("/websocket/chat/{userId}")
+      // 检查当前环境地址
       const wsUrl = "ws://127.0.0.1:8080/websocket/chat/admin";
       this.socket = new WebSocket(wsUrl);
 
@@ -191,102 +213,83 @@ export default {
       };
 
       this.socket.onopen = () => {
-        console.log("客服工作台已上线");
+        console.log(">>> 客服工作台连接成功 (admin)");
+      };
+
+      this.socket.onclose = () => {
+        console.warn("<<< WebSocket 连接已断开");
+      };
+
+      this.socket.onerror = () => {
+        this.$message.error("聊天服务器连接失败，请检查网络或后端状态");
       };
     },
 
-    /** 处理收到的消息 */
-    handleReceivedMessage(data) {
-      // ★ 1. 看看收到的 JSON 到底长什么样 ★
-      console.log("B端收到原始数据包:", data);
-
-      // 2. 检查是否有 fromUserId
-      if (!data.fromUserId) {
-        console.error("【严重错误】收到消息但没有 fromUserId，无法归类！请检查后端代码。");
-        return;
-      }
-      // 3. 如果收到的消息正是当前正在聊天的用户
-      if (data.fromUserId == this.currentUserId) {
-        this.messageList.push({
-          senderType: 1, // 客户
-          content: data.content
-        });
-        this.scrollToBottom();
-      } else {
-        // 4. 如果是其他用户，更新左侧列表状态
-        this.updateUserList(data);
-      }
+    loadChatUsers() {
+      // ★ 必须返回 Promise 以便 mounted 使用 await ★
+      return request({ url: '/visa/order/chat/users', method: 'get' }).then(res => {
+        this.userList = (res.rows || []).map(item => ({
+          id: item.customerId,
+          orderId: item.id,
+          orderNo: item.orderNo,
+          nickname: item.customerName || ('客户' + item.customerId),
+          lastMsg: item.lastMsg,
+          combinedId: item.customerId + '-' + item.id,
+          unread: false
+        }));
+      }).catch(err => {
+        console.error("加载咨询列表失败:", err);
+      });
     },
 
-    updateUserList(data) {
-      console.log("准备更新左侧列表，发送者 ID:", data.fromUserId);
-
-      // 查找列表里是否已存在该用户
-      // 注意：用 == 比较，防止字符串 "1" 和数字 1 匹配不上
-      const index = this.userList.findIndex(u => u.id == data.fromUserId);
-
-      if (index !== -1) {
-        // 情况 A：用户已在列表，更新消息并置顶
-        const user = this.userList[index];
-        user.lastMsg = data.content;
-        user.unread = true;
-
-        // 删掉旧的，重新塞到最前面（实现置顶效果，且触发 Vue 刷新）
-        this.userList.splice(index, 1);
-        this.userList.unshift(user);
-      } else {
-        // 情况 B：新用户咨询，直接塞到最前面
-        this.userList.unshift({
-          id: data.fromUserId,
-          nickname: '客户 ' + data.fromUserId,
-          lastMsg: data.content,
-          unread: true
-        });
-      }
-
-      // ★ 核心加固：强制告诉 Vue 列表变了
-      this.userList = [...this.userList];
-      console.log("当前列表总人数:", this.userList.length);
-    },
     /** 选择用户开始聊天 */
     handleSelectUser(user) {
+      console.log("当前选中会话:", user);
+      this.currentSessionId = user.combinedId;
       this.currentUserId = user.id;
       this.currentUserName = user.nickname;
       this.currentOrderId = user.orderId;
       this.currentOrderNo = user.orderNo;
       user.unread = false;
 
-      // 请求历史记录
+      // 加载历史记录
       request({
         url: '/visa/order/chat/history',
         method: 'get',
         params: {
           orderId: user.orderId,
-          customerId: user.id // ★ 核心隔离逻辑
+          customerId: user.id,
+          isAi: '0'
         }
       }).then(res => {
-        this.messageList = res.data;
+        this.messageList = res.data || [];
         this.scrollToBottom();
       });
     },
+
     /** 发送消息 */
     handleSend() {
       if (!this.inputText.trim()) return;
+      if (!this.currentUserId) return this.$message.warning("请先选择一个客户");
 
-      // ★★★ 核心修复：必须包含 orderId ★★★
+      // 检查连接
+      if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
+        this.$message.error("聊天已断开，正在尝试重连...");
+        this.initWebSocket();
+        return;
+      }
+
       const msgObj = {
-        toUserId: this.currentUserId.toString(), // 发给谁
-        fromUserId: 'admin',                     // 我是谁
-        content: this.inputText,                 // 聊啥
-        // 这里要从当前选中的用户对象里拿 orderId，如果没有就传 0
-        orderId: this.currentUserOrderId || 0,
-        senderType: 2                            // 2代表管理员
+        toUserId: this.currentUserId.toString(),
+        fromUserId: 'admin',
+        content: this.inputText,
+        orderId: this.currentOrderId || 0, // 核心：绑定订单ID
+        senderType: 2
       };
 
-      // 1. 通过 WebSocket 发送给后端
       this.socket.send(JSON.stringify(msgObj));
 
-      // 2. 存入当前显示的列表（即时显示）
+      // 预览
       this.messageList.push({
         senderType: 2,
         content: this.inputText,
@@ -296,46 +299,52 @@ export default {
       this.inputText = '';
       this.scrollToBottom();
     },
+
+    /** 处理收到的消息 */
+    handleReceivedMessage(data) {
+      console.log("收到新消息:", data);
+      // 如果消息是当前正在沟通的人发的
+      if (data.fromUserId == this.currentUserId) {
+        this.messageList.push({
+          senderType: 1,
+          content: data.content
+        });
+        this.scrollToBottom();
+      } else {
+        // 否则刷新左侧列表
+        this.loadChatUsers();
+      }
+    },
+
     scrollToBottom() {
       this.$nextTick(() => {
         const box = this.$refs.messageBox;
         if (box) box.scrollTop = box.scrollHeight;
       });
     },
-    loadChatUsers() {
-      request({ url: '/visa/order/chat/users', method: 'get' }).then(res => {
-        // 若依的 TableDataInfo 格式，数据在 rows 里
-        this.userList = (res.rows || []).map(item => ({
-          id: item.customerId,    // 用于对话的 ID
-          orderId: item.id,       // 关联的订单ID (SQL里我们做了别名)
-          orderNo: item.orderNo,
-          nickname: item.customerName || (item.customerId == 0 ? '游客' : '客户' + item.customerId),
-          lastMsg: item.lastMsg,
-          unread: false
-        }));
-      });
-    },
-    /** 点击查看订单详情 */
+
+    // 订单详情预览相关逻辑（保持你原来的 getUrl, handleViewOrder 等方法即可）
     handleViewOrder() {
       if (!this.currentOrderId) return;
-
-      // 1. 开启 Loading
-      const loading = this.$loading({ lock: true, text: '加载订单资料...' });
-
-      // 2. 调用你之前在管理端已经有的获取订单详情 API
-      // 注意：确保接口路径正确，通常是 /visa/order/{id}
-      request({
-        url: '/visa/order/' + this.currentOrderId,
-        method: 'get'
-      }).then(res => {
+      request({ url: '/visa/order/' + this.currentOrderId, method: 'get' }).then(res => {
         this.orderDetail = res.data;
         this.orderDetailOpen = true;
-      }).finally(() => {
-        loading.close();
       });
     },
-
-    // 别忘了把之前的辅助方法也粘过来（getUrl, isImage, parseMaterials, getPersonSuppFiles）
+    // ... 其他 getIdentityLabel, parseMaterials 等辅助方法 ...
+    getIdentityLabel(id) {
+      const map = { 'EMPLOYED': '在职', 'STUDENT': '学生', 'CHILD': '学龄前', 'RETIRED': '退休' };
+      return map[id] || '客户';
+    },
+    getUrl(path) {
+      return path && path.startsWith('http') ? path : (process.env.VUE_APP_BASE_API + path);
+    },
+    isImage(path) {
+      return /\.(jpg|jpeg|png|gif)$/i.test(path);
+    },
+    parseMaterials(json) {
+      try { return JSON.parse(json || '[]'); } catch (e) { return []; }
+    },
     getPersonSuppFiles(order, index) {
       if (!order.supplementaryMaterials) return [];
       try {
@@ -343,59 +352,13 @@ export default {
         return data[index.toString()] || [];
       } catch (e) { return []; }
     },
-    // 1. 解析材料 JSON 字符串
-    parseMaterials(jsonStr) {
-      if (!jsonStr) return [];
-      try {
-        // 假设后端存的是 JSON 字符串
-        return JSON.parse(jsonStr);
-      } catch (e) {
-        console.error("解析材料失败", e);
-        return [];
-      }
-    },
-
-    // 2. 判断是否是图片 (用于显示 el-image 还是文字)
-    isImage(path) {
-      if (typeof path !== 'string') return false;
-      const reg = /\.(jpg|jpeg|png|gif|webp|bmp)$/i;
-      return reg.test(path);
-    },
-
-    // 3. 拼接图片完整地址 (根据你后端的资源映射修改)
-    getUrl(path) {
-      if (!path) return '';
-      if (path.startsWith('http')) return path;
-      // 假设你的后端静态资源前缀是 process.env.VUE_APP_BASE_API
-      return process.env.VUE_APP_BASE_API + path;
-    },
-
-    // 4. 根据状态返回 Tag 的颜色类型
     getStatusType(status) {
-      const map = {
-        0: 'info',
-        1: 'primary',
-        2: 'warning',
-        3: '',
-        4: 'success',
-        5: 'danger'
-      };
+      const map = { 0: 'info', 1: 'primary', 2: 'warning', 4: 'success' };
       return map[status] || 'info';
     },
-
-    // 5. 文件预览 (补件详情)
     previewFile(url) {
       window.open(this.getUrl(url), '_blank');
-    },
-
-    // 6. 之前代码里的 getPersonSuppFiles 保持不变
-    getPersonSuppFiles(order, index) {
-      if (!order || !order.supplementaryMaterials) return [];
-      try {
-        const data = JSON.parse(order.supplementaryMaterials);
-        return data[index.toString()] || [];
-      } catch (e) { return []; }
-    },
+    }
   }
 };
 </script>

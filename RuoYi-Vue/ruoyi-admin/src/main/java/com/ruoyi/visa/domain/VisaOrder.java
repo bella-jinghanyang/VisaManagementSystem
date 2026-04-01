@@ -122,6 +122,14 @@ public class VisaOrder extends BaseEntity
     private String trackingNumber;
     private String courierCompany;
     private String userRemark;
+    private String customerName; // 关联查询出的客户姓名
+
+    public String getCustomerName() {
+        return customerName;
+    }
+    public void setCustomerName(String customerName) {
+        this.customerName = customerName;
+    }
 
     public void setUserRemark(String userRemark) {
         this.userRemark = userRemark;

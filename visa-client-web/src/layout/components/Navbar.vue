@@ -18,6 +18,9 @@
           </el-badge>
         </router-link>
         <router-link to="/ai-chat" class="nav-item">智能助手</router-link>
+        <router-link v-if="isLogin" to="/specialist-chat" class="nav-item">
+          <span>专属顾问</span>
+        </router-link>
       </div>
 
      <!-- 右侧 -->

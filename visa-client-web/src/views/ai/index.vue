@@ -47,7 +47,7 @@
         <div class="input-inner">
           <input
             v-model="userInput"
-            :placeholder="isHumanMode ? '请描述您的问题...' : '输入“人工”可召唤专员'"
+            :placeholder="isHumanMode ? '请描述您的问题...' : '请描述您的问题...'"
             @keyup.enter="handleSend"
           />
           <el-button

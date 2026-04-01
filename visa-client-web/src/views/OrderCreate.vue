@@ -23,7 +23,7 @@
                   <el-select v-model="applicantList[index - 1].identity" placeholder="请选择身份" style="width: 100%">
                     <el-option label="在职人员" value="EMPLOYED" />
                     <el-option label="自由职业" value="FREELANCE" />
-                    <el-option label="无业人员/家庭主妇" value="UNEMPLOYED" />
+                    <el-option label="无业人员" value="UNEMPLOYED" />
                     <el-option label="学生" value="STUDENT" />
                     <el-option label="退休人员" value="RETIRED" />
                     <el-option label="学龄前儿童" value="CHILD" />

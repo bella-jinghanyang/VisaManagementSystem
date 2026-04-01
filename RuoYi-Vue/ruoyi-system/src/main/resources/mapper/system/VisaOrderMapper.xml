@@ -39,6 +39,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <result property="expressToAgency" column="logistics_user_to_agency" />
         <result property="trackingNumber" column="logistics_agency_to_user" />
         <result property="userRemark" column="user_remark" />
+        <result property="customerName" column="customer_name" />
 
     </resultMap>
 
@@ -255,6 +256,74 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         WHERE om.is_ai = '0'
         GROUP BY om.customer_id, om.order_id
         ORDER BY last_time DESC
+    </select>
+
+
+    <select id="selectUserActiveOrders" resultMap="VisaOrderResult">
+        select
+        vo.id,
+        vo.order_no,
+        vo.status,
+        vp.title as product_name,
+        vp.image as product_image
+        from visa_order vo
+        left join visa_product vp on vo.product_id = vp.id
+        where vo.customer_id = #{customerId}
+        and vo.del_flag = '0'
+        and vo.status != 6  <!-- 只看未结案的订单 -->
+        order by vo.create_time desc
+    </select>
+
+
+
+    <!-- 1. 统计核心指标和漏斗基础 -->
+    <select id="selectIndexStats" resultType="map">
+        SELECT
+            COUNT(CASE WHEN status = 2 THEN 1 END) as pendingReview,
+            COUNT(CASE WHEN status = 10 THEN 1 END) as pendingPhysical,
+        <!-- 修改营收统计逻辑：由本月改为最近30天 -->
+        IFNULL(SUM(CASE WHEN status > 0 AND create_time >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) THEN total_amount ELSE 0 END), 0) as monthlyRevenue,
+            (SELECT IFNULL(AVG(rating), 5.0) FROM visa_comment) as avgRating,
+            /* 漏斗数据点 */
+            COUNT(id) as totalCount,
+            COUNT(CASE WHEN status >= 1 THEN 1 END) as paidCount,
+            COUNT(CASE WHEN status >= 2 THEN 1 END) as materialsCount,
+            COUNT(CASE WHEN status IN (5,6) THEN 1 END) as finishedCount
+        FROM visa_order
+        WHERE del_flag = '0'
+    </select>
+
+    <!-- 2. 查询热门目的地 -->
+    <select id="selectTopDestinations" resultType="map">
+        SELECT
+            vp.title as name,
+            COUNT(vo.id) as value
+        FROM visa_order vo
+            LEFT JOIN visa_product vp ON vo.product_id = vp.id
+        WHERE vo.del_flag = '0'
+        GROUP BY vo.product_id
+        ORDER BY value DESC
+            LIMIT 5
+    </select>
+
+    <!-- 3. 查询异常滞留单 -->
+    <select id="selectWarningOrders" resultType="map">
+        SELECT
+            vo.id,
+            vo.order_no as orderNo,
+            vp.title as productName,
+            CASE vo.status
+                WHEN 4 THEN '使馆办理中'
+                WHEN 9 THEN '等待寄送原件'
+                WHEN 10 THEN '快递运输中'
+                END as statusName,
+            DATEDIFF(NOW(), vo.update_time) as delayDays
+        FROM visa_order vo
+                 LEFT JOIN visa_product vp ON vo.product_id = vp.id
+        WHERE vo.status IN (4, 9, 10)
+          AND vo.del_flag = '0'
+          AND DATEDIFF(NOW(), vo.update_time) > 7 /* 超过7天没更新的 */
+        ORDER BY delayDays DESC
     </select>
 
 

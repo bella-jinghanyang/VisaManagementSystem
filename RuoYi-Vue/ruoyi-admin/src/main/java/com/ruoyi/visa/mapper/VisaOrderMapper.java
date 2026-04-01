@@ -1,6 +1,8 @@
 package com.ruoyi.visa.mapper;
 
 import java.util.List;
+import java.util.Map;
+
 import com.ruoyi.visa.domain.VisaOrder;
 import org.apache.ibatis.annotations.Param;
 
@@ -71,6 +73,15 @@ public interface VisaOrderMapper
      * 查询有过沟通记录的订单列表
      */
     public List<VisaOrder> selectChatUserList();
+
+    // 查询首页各项统计数值
+    Map<String, Object> selectIndexStats();
+
+    // 查询热门国家分布
+    List<Map<String, Object>> selectTopDestinations();
+
+    // 查询滞留预警订单
+    List<Map<String, Object>> selectWarningOrders();
 
 
 }
