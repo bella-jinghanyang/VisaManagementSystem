@@ -539,7 +539,7 @@ export default {
         'CHILD': '学龄前',
         'RETIRED': '退休',
         'FREELANCE': '自由职业',
-        'UNEMPLOYED': '无业/主妇'
+        'UNEMPLOYED': '无业人员'
       };
       return map[id] || '普通申请人';
     },
