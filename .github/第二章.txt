@@ -1,0 +1,111 @@
+第2章 相关技术综述
+本章对本系统开发所涉及的关键技术进行系统性介绍，包括后端开发框架、安全认证机制、前端工程化技术栈、中间件，以及与系统核心业务创新直接相关的FSM状态建模、RAG智能问答与Stripe支付集成技术，旨在为后续章节的需求分析与系统设计提供必要的技术背景。
+2.1 后端核心开发框架
+2.1.1 Spring Boot 与 MVC 分层架构
+Spring Boot 是基于 Spring Framework 衍生而来的快速应用开发框架，通过"约定优于配置"（Convention over Configuration）的设计哲学，内置自动配置（AutoConfiguration）机制与 Embedded Tomcat 内嵌容器，使服务端应用能够以可执行 JAR 包的形式独立运行，无需额外配置外部应用服务器[11]。Spring Boot 2.x 在保留 Spring 生态完整依赖注入能力的同时，通过 Starter 依赖机制大幅降低了基础设施的配置成本，跻身 Java 企业级后端开发的主流选型。
+本系统后端严格遵循 MVC（Model-View-Controller）三层架构规范，将系统纵向划分为控制层（Controller）、业务逻辑层（Service）和数据访问层（Mapper）三个层次。控制层通过 @RestController 注解暴露 RESTful API 接口，负责请求接收、参数校验与结果序列化；业务逻辑层封装核心业务规则，包括订单状态流转判断、事务边界控制及跨模块协调调用；数据访问层通过 MyBatis XML 映射配置与底层数据库交互，仅向上层暴露接口方法。三层之间单向依赖、各司其职，耦合度低，利于独立测试与功能迭代。
+2.1.2 MyBatis 持久层框架
+MyBatis 是一款基于 Java 的半自动化对象关系映射（ORM）框架，允许开发者通过 XML 配置或注解方式自定义 SQL 语句，同时提供将结果集自动映射至 Java 对象的便利机制[12]。相较于 Hibernate 等全自动 ORM 框架，MyBatis 保留了对 SQL 语句的精细控制权，在涉及复杂多表关联查询时具有调优路径清晰的明显优势。
+本系统存在多处跨表联合查询场景。以订单主表（visa_order）与申请人明细表（visa_order_applicant）的一对多关联为例，VisaOrderServiceImpl 采用"先分页查主表，再循环补查从表"的两阶段策略：PageHelper 仅对主表执行分页查询，避免了 JOIN 操作在大数据量下导致的分页数目偏差问题；此后逐条附加申请人列表，确保返回数据的完整性。此外，本系统在签证产品表（visa_product）中将材料要求配置（requirements_config）、订单表中的寄送地址快照（mailing_address）等复杂结构化数据以 MySQL 8.0 原生 JSON 字段存储[20]，借助 FastJSON2 库完成序列化与反序列化，有效支撑了材料配置动态可变的业务需求。
+
+2.2 安全认证机制
+2.2.1 基于 RBAC 模型的细粒度访问控制
+基于角色的访问控制（Role-Based Access Control，RBAC）是一种以"角色"为中心组织权限授予关系的访问控制模型，核心思想是将操作权限赋予角色而非直接赋予用户个体，用户通过被分配角色间接继承操作资格[4]。该模型天然实现了权限定义与用户管理的解耦，在多角色、大用户量场景下较传统自主访问控制（DAC）和强制访问控制（MAC）具有显著的管理效率优势。
+本系统基于 RBAC 思想构建了覆盖"页面目录—功能菜单—接口按钮"三个粒度层次的完整权限体系。系统维护 sys_role（角色定义表）、sys_menu（菜单资源表）、sys_user_role（用户-角色关联表）及 sys_role_menu（角色-菜单关联表）四张核心数据表，构成具备完整拓扑语义的权限关系图。在接口防护层面，系统通过 Spring Security 框架的 @PreAuthorize 注解结合自定义权限标识符（如 @PreAuthorize("@ss.hasPermi('visa:order:audit')")）实现方法级别的访问拦截[19]，从架构层面保证申请人、操作人员、审核专员三类角色在调用后端接口时均通过显式权限校验，有效消除越权操作的安全隐患。
+2.2.2 JSON Web Token 无状态认证机制
+JSON Web Token（JWT）是 IETF 在 RFC 7519 中定义的开放标准，规定了一种紧凑且自包含的方式，用于在通信双方之间以 JSON 对象的形式安全传递声明信息[14]。标准 JWT 令牌由 Header（指定令牌类型与签名算法）、Payload（存储用户标识等声明字段）、Signature（服务端以密钥对前两部分执行 HMAC-SHA256 运算生成的防篡改校验码）三部分经 Base64URL 编码后以"."连接而成。Signature 的存在保证了令牌内容在传输过程中不可被中间人篡改；服务端无需查询外部存储即可重新计算签名完成验证，从而实现真正意义上的无状态（Stateless）认证。
+本系统采用"JWT + Redis 双层认证"机制。用户登录成功后，TokenService 生成唯一 UUID 作为 LOGIN_USER_KEY，将包含完整权限信息的 LoginUser 对象以该 UUID 为键写入 Redis；同时将 UUID 封入 JWT Payload，以配置指定的 Header 字段名下发给客户端。后续每次请求中，JwtAuthenticationTokenFilter 拦截器从请求头解析 JWT，取出 UUID 后向 Redis 查询完整的 LoginUser 对象以完成权限上下文加载。该机制以 JWT 实现服务端无状态验证的同时，借助 Redis 侧保留了主动注销与令牌滑动续期（当令牌剩余有效期低于 20 分钟时自动刷新）的有状态管理能力，兼顾了分布式场景下的水平扩展能力与安全可控性。
+2.3 前端工程化技术栈
+2.3.1 Vue 2.x 响应式框架与组件化开发
+Vue.js 是一款渐进式 JavaScript 前端框架，以响应式数据绑定与声明式渲染为核心设计理念[13]。Vue 2.x 内部基于 Object.defineProperty API 实现响应式系统，通过数据劫持方式监听 JavaScript 对象属性的变更，在模型层数据更新时自动触发虚拟 DOM 差量比对（Virtual DOM Diffing），并将最小化变更集应用于真实 DOM，有效避免了全量重渲染带来的性能压力。单文件组件（Single File Component，SFC）模型将 <template>、<script>、<style> 三部分封装于同一 .vue 文件，实现了视图、逻辑与样式的高内聚组织。
+本系统管理端采用 Vue 2.x 结合 Element UI 开发[22]，Element UI 提供了成熟的表格、表单、对话框、日期选择器等企业级组件，保证了工作台页面的开发效率；用户端（visa-client-web）在此基础上以自定义 AppleCard.vue 组件与全局 CSS 变量，实现了两端在视觉功能定位上的差异化。数据可视化方面，管理端首页集成 Apache ECharts 对订单量、签证类型分布等业务指标进行图表渲染，为运营决策提供数据支撑[23]。
+Vuex 状态管理库以集中式单一数据源（Store）管理跨组件全局状态（如当前登录用户信息、购物车内容），通过严格的 Mutation + Action 机制规范状态变更流向，防止多组件对同一状态的竞态修改。Vue Router 通过全局前置守卫（router.beforeEach）对每次页面跳转执行 Token 有效性校验，未通过验证的访问请求被统一重定向至登录页，在前端路由层面构筑了第一道访问防线。
+2.4 中间件技术
+2.4.1 Redis 内存数据库与分布式会话
+Redis（Remote Dictionary Server）是一款基于内存、支持持久化的高性能键值型数据库，以单线程命令执行模型结合 I/O 多路复用实现了亚毫秒级的读写延迟，是目前业界最广泛采用的分布式缓存与会话存储方案之一[16]。Redis 原生支持字符串、哈希、列表、集合、有序集合等多种数据结构，可灵活适配不同业务数据的存储与计算需求。
+本系统通过 spring-boot-starter-data-redis 对 Redis 进行集成，主要承担两类关键职责：其一，作为 JWT 认证体系的 Session 存储介质，以 LOGIN_TOKENS:{uuid} 为键缓存 LoginUser 鉴权对象，实现多节点部署下的跨实例会话共享，并通过动态滑动过期策略支持令牌自动续期；其二，作为系统基础设施组件的数据缓存层，对菜单权限等低变动高频访问的配置性数据进行本地缓存预热，避免重复的数据库全表扫描，显著提升接口响应速度。
+2.4.2 WebSocket 全双工通信协议
+WebSocket 是 IETF 在 RFC 6455 中定义的应用层全双工通信协议，基于 HTTP/1.1 的协议升级握手（Upgrade: websocket）完成协议切换后，在客户端与服务端之间建立持久化双向长连接[15]。不同于 HTTP 短连接的"请求—响应"单向模式，WebSocket 连接建立后任意一方均可主动向对方推送数据帧，根本消除了传统轮询方案的延迟抖动与无效带宽消耗，尤其适用于实时消息推送等延迟敏感型场景。
+本系统通过 javax.websocket API 实现 ChatWebSocketServer 服务端点，以 ConcurrentHashMap<String, Session> 并发安全地维护在线用户连接池，保证多并发连接场景下的线程安全性。消息到达时，系统根据发送方身份（管理员/用户）及是否携带订单号执行分流判定：携带有效订单号的用户消息直接路由至对应管理员会话，触发人工专员服务；无订单号的通用咨询消息则标记 is_ai = "1"，自动触发 AI 应答流程，实现人工客服与智能客服的无感知协同切换。所有消息均持久化写入 order_message 数据表，支持历史记录查询与客服质检追溯。
+2.5 核心业务技术
+2.5.1 有限状态机（FSM）建模理论
+有限状态机（Finite State Machine，FSM）是形式语言与自动机理论中的基础计算模型，由五元组 ⟨S,Σ,δ,s0,F⟩⟨S,Σ,δ,s 0 ,F⟩ 定义，分别表示有限状态集合 SS、有限输入事件集合 ΣΣ、状态转换函数 δS×Σ→Sδ:S×Σ→S、初始状态 s0∈Ss 0 ∈S 及终止状态集合F⊆S。FSM 的核心性质在于确定性——在当前状态与触发事件共同确定的前提下，系统的下一状态唯一且完全可预测，不存在二义性[6]。这一确定性保证使 FSM 成为对复杂业务流程进行严格形式化建模的有力工具，尤其适用于具有明确阶段划分与非线性分支的工作流管理场景。
+本系统将 FSM 引入签证订单生命周期管理，设计了包含 11 个语义状态、4 条典型流转路径的订单状态机。11 个状态的语义如下：状态 0（待支付）→ 状态 1（待上传材料）→ 状态 2（材料审核中），此后依据产品配置分三条路径演进：普通流程直接进入状态 4（办理中）；面签流程经状态 7（面试预约决策阶段）→ 状态 8（待面试）后进入状态 4；原件寄送流程经状态 9（物理原件待寄送阶段）→ 状态 10（原件运输/在途状态）后进入状态 4；最终所有路径收敛于状态 5（待收货）→ 状态 6（已完成）。材料补交异常回路为状态 2 ⇌ 状态 3（材料补交中）的循环，直至审核通过为止。各状态间的合法转换规则在业务逻辑层以显式条件判断编码，服务端对任意状态变更操作执行"当前状态—目标状态"合法性前置校验，从机制上杜绝非法状态跳变。
+2.5.2 检索增强生成（RAG）技术与大语言模型集成
+检索增强生成（Retrieval-Augmented Generation，RAG）是 Lewis 等人于 2020 年提出的将密集向量检索与序列到序列（seq2seq）生成模型相结合的知识增强推理范式[1]。RAG 通过在推理阶段从外部知识库动态检索与用户问题语义相关的文档片段，将检索结果作为上下文（Context）随原始问题一同注入语言模型，引导模型以检索到的事实为约束边界生成回答，从而有效缓解纯参数化语言模型因训练数据截止日期导致的知识过期问题（即"幻觉"，Hallucination）[2]。Gao 等人的综述进一步将 RAG 演进归纳为朴素 RAG、高级 RAG 与模块化 RAG 三代范式，指出高级 RAG 通过查询改写、检索后重排序等步骤可进一步提升知识召回精度与最终回答质量。
+本系统 RAG 模块的生成后端选用 DeepSeek-V3 大语言模型。DeepSeek-V3 是深度求索公司于 2024 年 12 月发布的高性能混合专家（Mixture-of-Experts, MoE）架构语言模型，总参数量达 671B，在多项主流基准测试中达到开源模型领先水平，且其 API 完全兼容 OpenAI 协议格式，方便工程集成[17]。知识库以结构化条目形式存储于 visa_knowledge 数据表，keywords 字段存储逗号分隔的匹配关键词，支持对用户问题进行关键词匹配检索；推理阶段，VisaAiService 将检索到的知识条目序列化为纯文本上下文，与角色约束 System Prompt 拼装为符合 OpenAI Chat Completions 规范的 JSON 请求体，通过 OkHttp3 客户端[18]以 HTTPS 连接调用 DeepSeek API，解析响应报文中的 choices[0].message.content 字段后返回给用户端。System Prompt 内置明确行为约束：当知识库内容与问题相关时，模型须严格依据参考资料给出精准回答；当知识库无相关覆盖时，模型可基于通用知识回答，但须在回答首尾显式标注"建议以官方最新公布为准"的免责声明，确保系统回答具备完整的溯源追责路径。
+2.5.3 Stripe 第三方支付接口集成
+Stripe 是面向全球市场的主流在线支付基础设施提供商，其 Java SDK 基于 RESTful API 封装了支付会话创建（Checkout Session）、订单状态查询与 Webhook 事件推送等完整支付链路[21]。Stripe Checkout Session 是 Stripe 推荐的标准化托管支付模式：商户后端调用 Session.create() 接口生成唯一的支付页面 URL，前端将用户跳转至该 Stripe 托管页面完成收款，将支付表单合规校验与 PCI DSS 数据安全规范的维护责任转移至 Stripe 侧，有效降低了商户端的安全合规负担。
+本系统支付流程实现如下：StripeController.createSession() 在接收到含有效 orderNo 的请求后，首先校验数据库中订单状态为 0（待支付），随后将金额从元换算为分（乘以 100 取整），以 SessionCreateParams 构造器模式组装包含产品名称、金额与回跳地址的 Session 参数，调用 SDK Session.create() 获取托管支付页 URL 返回给前端。支付成功后，Stripe 将用户浏览器重定向至预设 successUrl（携带 orderNo 参数），前端解析后主动调用 /client/stripe/confirm 接口触发状态确认。confirmPayment() 内置幂等性校验——仅当当前订单状态为 0 时，方可将 status 从 0（待支付）原子性更新为 1（待上传材料），同时记录支付时间与第三方流水号；若状态已非 0，则直接返回成功响应而不执行二次写入，防止网络重试或页面刷新导致的重复状态变更。VisaOrderServiceImpl.updateVisaOrder() 通过 @Transactional 注解保证订单主表字段更新与物流记录插入操作的原子性，在数据库事务层面保障支付链路的最终一致性。
+2.6 开发工具与运行环境
+本系统的开发工作在统一的软硬件环境下完成，以确保各构件之间的版本兼容性与部署一致性。以下从硬件平台、后端工具链与前端工具链三个维度对开发环境进行说明。
+2.6.1 硬件与操作系统平台
+笔者选用搭载Apple M5芯片的MacBook Air作为开发主机，配置24 GB统一内存（Unified Memory）与1 TB固态存储。M5芯片采用ARM64架构，其高效能核（Performance Core）与节能核（Efficiency Core）的异构设计在本地同时运行Spring Boot后端服务、MySQL、Redis与前端开发服务器时具备显著的功耗-性能优势。操作系统为macOS，原生支持ARM64字节码执行，规避了传统x86虚拟化层所引入的额外调度开销。
+2.6.2 后端运行时与工具链
+本系统采用Amazon Corretto 17作为Java运行时环境。Amazon Corretto是亚马逊云服务基于OpenJDK官方规范所维护的长期支持（LTS）发行版 [24]，支持零附加成本分发，并提供Apple Silicon原生ARM64二进制包，避免了通过Rosetta 2转译层运行时引入的额外性能损耗。JDK 17作为继JDK 8之后最重要的LTS版本，带来了模式匹配、密封类（Sealed Classes）等现代语言特性，同时改进了G1垃圾回收器的停顿预测模型。
+项目采用Apache Maven作为依赖管理与构建工具。根目录pom.xml以多模块（Multi-Module）结构组织后端各层级子模块，统一管控Spring Boot 2.5.15、MyBatis 3.5.x、Spring Security 5.7.14等核心依赖版本，系统性消除依赖冲突风险。
+后端开发采用IntelliJ IDEA Ultimate 2025.3.4。该工具内置Spring Boot启动配置、SQL控制台、HTTP Client与Git集成，可在不跳出IDE的前提下完成接口调试、数据库查询与日志追踪，显著缩短开发迭代周期。
+2.6.3 前端运行时与工具链
+前端项目依赖Node.js v18.20.8（LTS）作为JavaScript运行时 [25]。该版本为v18系列的最终维护版本，具备完整的V8引擎性能优化与npm 10.x包管理能力。两个前端子项目（管理端与用户端）均使用Vue CLI 5搭建，其基于Webpack的内置开发服务器支持热模块替换（HMR, Hot Module Replacement），代码修改可在数百毫秒内反映至浏览器页面，提升开发反馈效率。
+前端开发采用Visual Studio Code，配合Vetur插件提供对Vue单文件组件（.vue）的语法高亮、智能补全与类型提示；代码规范由ESLint（Standard风格）统一约束，在提交代码之前对潜在错误进行静态检查。
+表2.1汇总了本系统完整的开发环境配置，以供复现参考。
+表2.1 开发环境配置一览
+类别	工具 / 组件	版本
+硬件平台	Apple MacBook Air M5，24 GB内存，1 TB SSD	—
+操作系统	macOS (ARM64)	—
+Java 运行时	Amazon Corretto	17 LTS
+后端 IDE	IntelliJ IDEA Ultimate	2025.3.4
+构建工具	Apache Maven	3.x
+后端框架	Spring Boot	2.5.15
+前端运行时	Node.js	v18.20.8 LTS
+前端 IDE	Visual Studio Code（Vetur 插件）	最新稳定版
+关系型数据库	MySQL	8.0
+内存数据库 / 缓存	Redis	8.6.2
+上述工具链以"稳定优先、长期支持为主"为选型原则：Java运行时与Node.js均采用LTS版本以保障长期可维护性；MySQL 8.0因其原生JSON字段类型支持（对应本系统visa_order、visa_product等表的JSON列设计，详见第4章[20]）而优先选用，与系统存储申请材料清单、产品配置规则等半结构化数据的设计决策高度匹配。
+2.7 本章小结
+本章围绕本系统所涉及的关键技术与开发环境进行了系统性综述。首先，介绍了以Spring Boot为核心的后端开发框架及其约定优于配置的工程化优势，并阐述了MyBatis在SQL映射与分页查询两阶段策略中的具体应用；其次，从RBAC访问控制模型与JWT+Redis双层认证机制两个维度分析了系统的安全架构；继而，梳理了Vue 2.x响应式原理、Vuex状态管理、Vue Router路由机制、ECharts可视化组件及Element UI设计体系等前端技术要素；在中间件层面，重点阐明了Redis在会话存储与缓存加速中的作用，以及基于RFC 6455协议的WebSocket实时通信机制；在核心业务技术层面，分别对订单状态机（FSM）的五元组形式化定义、基于DeepSeek-V3的RAG检索增强生成架构，以及Stripe Checkout Session支付集成的幂等性控制进行了深入分析；最后，对项目所依托的软硬件开发环境进行了完整说明。上述技术的有机组合奠定了本系统在功能完整性、安全鲁棒性与可维护性方面的技术基础，为后续章节的系统设计与实现提供了理论依据。
+[11] Pivotal Software. Spring Boot 2.7 Reference Documentation[EB/OL].
+(2023)[2026-04-08]. https://docs.spring.io/spring-boot/docs/2.7.x/reference/html/
+
+[12] The MyBatis Team. MyBatis 3 User Guide[EB/OL].
+ (2023)[2026-04-08]. https://mybatis.org/mybatis-3/
+
+[13] Vue.js Team. Vue.js 2.x Guide[EB/OL].
+ (2023)[2026-04-08]. https://v2.vuejs.org/v2/guide/
+
+[14] Jones M, Bradley J, Sakimura N. JSON Web Token (JWT). RFC 7519[S].
+Internet Engineering Task Force, 2015. https://datatracker.ietf.org/doc/html/rfc7519
+
+[15] Fette I, Melnikov A. The WebSocket Protocol. RFC 6455[S].
+     Internet Engineering Task Force, 2011.
+     https://datatracker.ietf.org/doc/html/rfc6455
+
+[16] Redis Ltd. Redis Documentation[EB/OL].
+     (2024)[2026-04-08]. https://redis.io/docs/
+
+[17] DeepSeek-AI. DeepSeek-V3 Technical Report[EB/OL].
+     arXiv:2412.19437, 2024. https://arxiv.org/abs/2412.19437
+
+[18] Square Inc. OkHttp Documentation[EB/OL].
+     (2023)[2026-04-08]. https://square.github.io/okhttp/
+
+[19] Spring Security Team. Spring Security Reference Documentation[EB/OL].
+     (2023)[2026-04-08]. https://docs.spring.io/spring-security/reference/
+
+[20] MySQL Development Team. MySQL 8.0 Reference Manual: The JSON Data Type[EB/OL].
+     (2023)[2026-04-08]. https://dev.mysql.com/doc/refman/8.0/en/json.html
+
+[21] Stripe Inc. Stripe API Reference[EB/OL].
+     (2024)[2026-04-08]. https://stripe.com/docs/api
+
+[22] Element Team. Element UI Documentation[EB/OL].
+     (2023)[2026-04-08]. https://element.eleme.io/
+
+[23] Apache Software Foundation. Apache ECharts Documentation[EB/OL].
+     (2024)[2026-04-08]. https://echarts.apache.org/en/index.html
+[24] Amazon Web Services. Amazon Corretto 17 User Guide. AWS Documentation. 2025. Available: https://docs.aws.amazon.com/corretto/latest/corretto-17-ug/what-is-corretto-17.html
+[25] OpenJS Foundation. Node.js v18 Changelog and LTS Schedule. 2025. Available: https://nodejs.org/en/blog/release/v18.20.8
+
+
+
+
