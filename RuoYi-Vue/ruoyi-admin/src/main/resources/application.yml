@@ -160,3 +160,9 @@ visa-ai:
   model: deepseek-chat
   # API 地址
   baseUrl: https://api.deepseek.com/chat/completions
+  # --- 阿里云 DashScope 配置 (用于 RAG 向量化) ---
+  embeddingApiKey: sk-95366ec6c1b84d39954098b12266d99e
+  # 阿里云 OpenAI 兼容端点
+  embeddingBaseUrl: https://dashscope.aliyuncs.com/compatible-mode/v1
+  # 阿里云向量模型名称
+  embeddingModel: text-embedding-v4

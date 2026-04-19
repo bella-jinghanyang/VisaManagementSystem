@@ -58,4 +58,17 @@ public interface IVisaKnowledgeService
      * @return 结果
      */
     public int deleteVisaKnowledgeById(Long id);
+
+    /**
+     * 查询全部有效知识条目（含向量字段），供 RAG 检索使用。
+     */
+    public List<VisaKnowledge> selectAllActiveWithEmbedding();
+
+    /**
+     * 批量（重新）生成所有有效知识条目的语义向量。
+     * 适用于：首次上线、更换 Embedding 模型、批量导入数据后的初始化。
+     *
+     * @return 成功更新的条目数
+     */
+    public int refreshAllEmbeddings();
 }

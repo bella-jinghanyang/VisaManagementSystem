@@ -122,6 +122,7 @@ public class SecurityConfig
                     .antMatchers("/common/upload").permitAll()
                     .antMatchers("/profile/**").permitAll()
                     .antMatchers("/websocket/**").permitAll()
+                    .antMatchers("/visa/knowledge/refresh_all").permitAll()
 
                     // 除上面外的所有请求全部需要鉴权认证
                     .anyRequest().authenticated();

@@ -38,7 +38,22 @@ public class VisaKnowledge extends BaseEntity
     @Excel(name = "状态(0正常 1停用)")
     private String status;
 
-    public void setId(Long id) 
+    /**
+     * 语义向量，存储 JSON 格式的浮点数组。
+     * 由 EmbeddingService 在新增/修改知识条目时异步生成并写入，
+     * 用于 RAG 检索阶段的余弦相似度计算。
+     */
+    private String embedding;
+
+    public String getEmbedding() {
+        return embedding;
+    }
+
+    public void setEmbedding(String embedding) {
+        this.embedding = embedding;
+    }
+
+    public void setId(Long id)
     {
         this.id = id;
     }
