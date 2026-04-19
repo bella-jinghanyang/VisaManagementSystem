@@ -48,7 +48,16 @@ public class VisaAiService {
 
         JSONArray messages = new JSONArray();
         messages.add(createMessage("system", systemPrompt));
-        messages.add(createMessage("user", userMessage));
+
+        String userPrompt;
+        if (context != null && !context.isEmpty()) {
+            // 有知识库内容时：拼接"参考资料 + 用户问题"
+            userPrompt = "【参考资料】\n" + context + "\n\n【用户问题】\n" + userMessage;
+        } else {
+            // 没有检索到内容时：只发原始问题
+            userPrompt = userMessage;
+        }
+        messages.add(createMessage("user", userPrompt));
 
         root.put("messages", messages);
         root.put("stream", false); // 暂时不使用流式，先用普通模式调试

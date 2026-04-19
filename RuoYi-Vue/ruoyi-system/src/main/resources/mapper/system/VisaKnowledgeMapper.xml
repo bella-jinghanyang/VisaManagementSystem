@@ -23,7 +23,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <where>  
             <if test="category != null  and category != ''"> and category = #{category}</if>
             <if test="title != null  and title != ''"> and title = #{title}</if>
-            <if test="keywords != null  and keywords != ''"> and keywords = #{keywords}</if>
+            <if test="keywords != null  and keywords != ''"> and (keywords LIKE CONCAT('%', #{keywords}, '%') OR title LIKE CONCAT('%', #{keywords}, '%') OR content LIKE CONCAT('%', #{keywords}, '%'))</if>
             <if test="content != null  and content != ''"> and content = #{content}</if>
             <if test="status != null  and status != ''"> and status = #{status}</if>
         </where>

@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/client/ai")
@@ -49,9 +50,21 @@ public class ClientAiController extends BaseController {
         userMsg.setIsAi("1"); // ★ 标记为 AI 消息
         messageService.insertOrderMessage(userMsg);
 
-        // 2. 获取 AI 回复
-        String aiAnswer = aiService.getAiResponse(q, "参考资料...");
+        // ★ Step 1：用用户的问题去知识库检索相关文档
+        VisaKnowledge queryParam = new VisaKnowledge();
+        // 用用户输入的问题作为关键词去匹配
+        // 注意：这里的匹配逻辑依赖 Mapper XML 里的 LIKE 查询（见下面说明）
+        queryParam.setKeywords(q);
+        queryParam.setStatus("0"); // 只查启用状态的知识
+        List<VisaKnowledge> docs = knowledgeService.selectVisaKnowledgeList(queryParam);
 
+        // ★ Step 2：把检索到的所有知识条目的 content 字段拼成一段"参考资料"
+        String context = docs.stream()
+                .map(VisaKnowledge::getContent)
+                .collect(Collectors.joining("\n---\n"));
+
+        // ★ Step 3：把真实的 context 传给 AI，而不是 "参考资料..."
+        String aiAnswer = aiService.getAiResponse(q, context);
         // 3. 保存 AI 的回答
         OrderMessage aiMsg = new OrderMessage();
         aiMsg.setOrderId(orderId != null ? orderId : 0L);

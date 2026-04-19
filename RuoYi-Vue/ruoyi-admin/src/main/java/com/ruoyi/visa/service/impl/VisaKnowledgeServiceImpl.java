@@ -41,6 +41,7 @@ public class VisaKnowledgeServiceImpl implements IVisaKnowledgeService
     @Override
     public List<VisaKnowledge> selectVisaKnowledgeList(VisaKnowledge visaKnowledge)
     {
+
         return visaKnowledgeMapper.selectVisaKnowledgeList(visaKnowledge);
     }
 
