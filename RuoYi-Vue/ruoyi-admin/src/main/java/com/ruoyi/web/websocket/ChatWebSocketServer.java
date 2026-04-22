@@ -49,22 +49,10 @@ public class ChatWebSocketServer {
             Long orderId = json.getLong("orderId");
             if (orderId == null) orderId = 0L;
 
-            // ★★★ 核心逻辑：分流判定 ★★★
-            String isAiFlag = "0"; // 默认判定为人工
-
-            if (!"admin".equals(userId)) {
-                // 如果发送者是客户
-                if (orderId > 0) {
-                    // 情况 1：带订单号咨询。强制设为“人工”，不触发 AI
-                    isAiFlag = "0";
-                } else {
-                    // 情况 2：不带订单号咨询。判定为“智能助手”消息
-                    isAiFlag = "1";
-                }
-            } else {
-                // 情况 3：管理员回复。永远是“人工”
-                isAiFlag = "0";
-            }
+            // ★★★ 核心逻辑：所有经由 WebSocket 传输的消息均为人工消息 ★★★
+            // AI 回复走 HTTP 接口（/client/ai/chat），不经过 WebSocket。
+            // 因此无论 orderId 是否为 0，此处统一标记为人工（isAiFlag = "0"）。
+            String isAiFlag = "0";
 
             // 1. 注入发送者ID
             json.put("fromUserId", userId);
@@ -94,18 +82,6 @@ public class ChatWebSocketServer {
 
             // 4. 保存原始消息到数据库
             messageService.insertOrderMessage(orderMsg);
-
-            // ★★★ 5. AI 自动回复逻辑 ★★★
-            if ("1".equals(isAiFlag)) {
-                // 只有当 orderId 为 0 (非专属顾问模式) 且标记为 AI 时，才调用 AI 服务
-                System.out.println(">>> 触发智能助手回复逻辑...");
-
-                // 这里调用你之前的 AI 回复方法 (假设方法名为 handleAiReply)
-                // 你需要确保该方法会产生一个新的消息包发回给客户
-                // handleAiReply(userId, content);
-            } else {
-                System.out.println(">>> 专属顾问模式/管理员回复，不触发 AI");
-            }
 
         } catch (Exception e) {
             System.err.println("WebSocket消息处理失败: " + e.getMessage());
