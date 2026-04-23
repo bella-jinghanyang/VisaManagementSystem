@@ -30,12 +30,15 @@
             <!-- 气泡 -->
             <div class="bubble-container">
               <div class="bubble">
-                <!-- 加载动画 -->
+                <!-- 加载动画（等待首字节阶段） -->
                 <div v-if="msg.loading" class="typing-indicator">
                   <span></span><span></span><span></span>
                 </div>
-                <!-- 内容渲染 -->
-                <div v-else class="text-content" v-html="formatContent(msg.content)"></div>
+                <!-- 流式内容：逐字追加，尾部附打字机光标 -->
+                <div v-else class="text-content">
+                  <span v-html="formatContent(msg.content)"></span>
+                  <span v-if="msg.streaming" class="typing-cursor">▍</span>
+                </div>
               </div>
             </div>
           </div>
@@ -66,7 +69,6 @@
 
 <script>
 /* eslint-disable */
-import { sendAiChat } from '@/api/ai';
 import request from '@/utils/request';
 import { marked } from 'marked';
 
@@ -169,24 +171,69 @@ export default {
 
     sendViaAiApi(content, customerId, orderId) {
       this.isGenerating = true;
-      this.messageList.push({ role: 'assistant', content: '', loading: true, time: this.getCurrentTime() });
+
+      // 添加一条带"打字机光标"动画的占位气泡
+      this.messageList.push({
+        role: 'assistant',
+        content: '',
+        loading: true,
+        streaming: true,
+        time: this.getCurrentTime()
+      });
+      const lastIndex = this.messageList.length - 1;
       this.scrollToBottom();
 
-      // 调用接口，务必传 customerId 和 orderId 以便后端隔离数据
-      // 注意：请确认你的 api/ai.js 接收这些参数
-      sendAiChat(content, orderId, customerId).then(res => {
-        const lastIndex = this.messageList.length - 1;
-        this.messageList[lastIndex].loading = false;
-        this.messageList[lastIndex].content = res.data;
-        this.scrollToBottom();
-      }).catch(err => {
-        console.error("AI对话失败:", err);
-        this.messageList.pop(); // 移除 loading 气泡
-        this.$message.error('助手暂时无法连接，请重试');
-      }).finally(() => {
-        // ★ 无论成功还是失败，必须解锁，否则发不出第二句 ★
-        this.isGenerating = false;
+      // 构建 SSE 请求 URL（/api 前缀由 vue.config.js 代理到后端 8080）
+      const params = new URLSearchParams({
+        q: content,
+        orderId: orderId || 0,
+        customerId: customerId || 0
       });
+      const es = new EventSource(`/api/client/ai/chat?${params.toString()}`);
+
+      es.onmessage = (event) => {
+        if (event.data === '[DONE]') {
+          // 流结束：关闭连接、解除 streaming 标记
+          es.close();
+          this.$set(this.messageList, lastIndex, {
+            ...this.messageList[lastIndex],
+            loading: false,
+            streaming: false
+          });
+          this.isGenerating = false;
+          return;
+        }
+
+        try {
+          const chunk = JSON.parse(event.data);
+          const msg = this.messageList[lastIndex];
+          this.$set(this.messageList, lastIndex, {
+            ...msg,
+            loading: false,
+            content: msg.content + chunk
+          });
+          this.scrollToBottom();
+        } catch (e) {
+          console.error('SSE chunk 解析失败:', e);
+        }
+      };
+
+      es.onerror = () => {
+        es.close();
+        this.isGenerating = false;
+        const msg = this.messageList[lastIndex];
+        if (msg && msg.loading) {
+          // 尚未收到任何内容则移除占位气泡并提示
+          this.messageList.splice(lastIndex, 1);
+          this.$message.error('助手暂时无法连接，请重试');
+        } else {
+          // 已有部分内容时，保留已输出内容并取消 streaming 状态
+          this.$set(this.messageList, lastIndex, {
+            ...this.messageList[lastIndex],
+            streaming: false
+          });
+        }
+      };
     },
     /** 方案 B: WebSocket 人工逻辑 */
     initHumanMode () {
@@ -232,22 +279,6 @@ export default {
         this.socket.send(JSON.stringify(msgObj))
       }
     },
-    loadHistory (orderId) {
-      // 这里的接口建议你去后端 VisaOrderController 补一个通用的获取 message 的方法
-      // 暂时用我们之前写的那个查询 order_message 的 Service
-      request.get('/client/ai/history', { params: { orderId } }).then(res => {
-        if (res.data) {
-          this.messageList = res.data.map(m => ({
-            role: m.senderType === 1 ? 'user' : 'assistant',
-            content: m.content,
-            time: this.formatDate(m.createTime)
-          }))
-          this.scrollToBottom()
-        }
-      })
-    },
-
-    /** 工具方法 */
     getCurrentTime () {
       const now = new Date()
       return now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0')
@@ -456,4 +487,15 @@ export default {
   ::v-deep p { margin: 0; }
   ::v-deep ul, ::v-deep ol { padding-left: 20px; margin: 8px 0; }
 }
+
+/* 打字机光标：流式输出期间在文字末尾闪烁 */
+.typing-cursor {
+  display: inline-block;
+  color: $primary-color;
+  animation: cursor-blink 0.8s step-end infinite;
+  font-weight: 400;
+  vertical-align: baseline;
+}
+
+@keyframes cursor-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
 </style>
