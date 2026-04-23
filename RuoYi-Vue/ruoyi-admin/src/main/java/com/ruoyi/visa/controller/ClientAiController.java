@@ -11,7 +11,9 @@ import com.ruoyi.visa.service.IOrderMessageService;
 import com.ruoyi.visa.service.IVisaKnowledgeService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.Comparator;
 import java.util.List;
@@ -57,22 +59,37 @@ public class ClientAiController extends BaseController {
     private IOrderMessageService messageService;
 
     /**
-     * AI 智能咨询接口（核心入口）
+     * AI 智能咨询接口（SSE 流式输出）
+     *
+     * <p>接口采用 Server-Sent Events 协议，返回 {@code text/event-stream} 响应流。
+     * 每个 SSE 事件携带一个 JSON 编码的文本 token；当收到 {@code data: [DONE]} 事件时
+     * 表示模型生成完毕，前端应关闭 {@link EventSource} 连接。</p>
+     *
+     * <p>处理流程：
+     * <ol>
+     *   <li>同步持久化用户消息；</li>
+     *   <li>在后台线程中执行 RAG 检索与模型调用，避免阻塞 Servlet 线程；</li>
+     *   <li>每个 token 到达时立即通过 {@link SseEmitter} 推送，首字节延迟
+     *       由大模型推理速度决定（通常 500ms～1.5s），满足 Miller 两秒交互阈值；</li>
+     *   <li>流结束后将完整回答一次性写入数据库。</li>
+     * </ol>
+     * </p>
      *
      * @param q          用户问题
      * @param orderId    关联订单 ID（可选，为 0 时表示通用咨询）
      * @param customerId 当前客户 ID（可选）
+     * @return SSE 发射器（Spring 持有连接直至 emitter.complete() 被调用）
      */
     @Anonymous
-    @GetMapping("/chat")
-    public AjaxResult chat(@RequestParam("q")                                  String q,
+    @GetMapping(value = "/chat", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter chat(@RequestParam("q")                                  String q,
                            @RequestParam(value = "orderId",    required = false) Long   orderId,
                            @RequestParam(value = "customerId", required = false) Long   customerId) {
 
         long oid = orderId    != null ? orderId    : 0L;
         long cid = customerId != null ? customerId : 0L;
 
-        // ── 步骤 1：持久化用户问题 ──────────────────────────────────
+        // ── 步骤 1：同步持久化用户消息 ────────────────────────────────────
         OrderMessage userMsg = new OrderMessage();
         userMsg.setOrderId(oid);
         userMsg.setCustomerId(cid);
@@ -81,24 +98,27 @@ public class ClientAiController extends BaseController {
         userMsg.setIsAi("1");
         messageService.insertOrderMessage(userMsg);
 
-        // ── 步骤 2：向量化检索（RAG Retrieval） ────────────────────
-        String context = retrieveContext(q);
-        log.info("检索到的上下文内容: {}", context); // 看看这里是不是空的
+        // ── 步骤 2：创建 SseEmitter，超时时间与 OkHttp readTimeout 对齐 ──
+        SseEmitter emitter = new SseEmitter(VisaAiService.SSE_TIMEOUT_MS);
 
-        // ── 步骤 3：调用大语言模型生成回答（RAG Generation） ──────
-        String aiAnswer = aiService.getAiResponse(q, context);
+        // ── 步骤 3：后台线程执行 RAG + 模型调用，避免阻塞 Servlet 线程 ──
+        new Thread(() -> {
+            String context = retrieveContext(q);
+            log.info("检索到的上下文内容: {}", context);
 
-        // ── 步骤 4：持久化 AI 回答 ─────────────────────────────────
-        OrderMessage aiMsg = new OrderMessage();
-        aiMsg.setOrderId(oid);
-        aiMsg.setCustomerId(cid);
-        aiMsg.setSenderType(2);
-        aiMsg.setContent(aiAnswer);
-        aiMsg.setIsAi("1");
-        messageService.insertOrderMessage(aiMsg);
+            aiService.streamAiResponse(q, context, emitter, fullText -> {
+                // ── 步骤 4：流结束后持久化完整 AI 回答 ────────────────
+                OrderMessage aiMsg = new OrderMessage();
+                aiMsg.setOrderId(oid);
+                aiMsg.setCustomerId(cid);
+                aiMsg.setSenderType(2);
+                aiMsg.setContent(fullText);
+                aiMsg.setIsAi("1");
+                messageService.insertOrderMessage(aiMsg);
+            });
+        }).start();
 
-
-        return AjaxResult.success("查询成功", aiAnswer);
+        return emitter;
     }
 
     /**
