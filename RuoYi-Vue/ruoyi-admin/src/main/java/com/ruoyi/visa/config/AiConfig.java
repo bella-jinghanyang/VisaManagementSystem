@@ -1,6 +1,7 @@
 package com.ruoyi.visa.config;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
+import co.elastic.clients.elasticsearch._types.mapping.DenseVectorSimilarity;
 import co.elastic.clients.json.jackson.JacksonJsonpMapper;
 import co.elastic.clients.transport.ElasticsearchTransport;
 import co.elastic.clients.transport.rest_client.RestClientTransport;
@@ -166,7 +167,6 @@ public class AiConfig {
         return ElasticsearchEmbeddingStore.builder()
                 .restClient(restClient)
                 .indexName(indexName)
-                .dimension(dimension)
                 .build();
     }
 
@@ -192,7 +192,7 @@ public class AiConfig {
                                         .denseVector(dv -> dv
                                                 .dims(dimension)
                                                 .index(true)
-                                                .similarity("cosine")))
+                                                .similarity(DenseVectorSimilarity.Cosine)))
                                 .properties("text", p -> p.text(t -> t))
                                 .properties("metadata", p -> p.object(o -> o.enabled(false)))));
                 log.info("Elasticsearch 索引 '{}' 已创建（维度={}）", indexName, dimension);

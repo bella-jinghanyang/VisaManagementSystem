@@ -10,6 +10,7 @@ import com.ruoyi.visa.service.IOrderMessageService;
 import dev.langchain4j.data.embedding.Embedding;
 import dev.langchain4j.data.segment.TextSegment;
 import dev.langchain4j.store.embedding.EmbeddingMatch;
+import dev.langchain4j.store.embedding.EmbeddingSearchRequest;
 import dev.langchain4j.store.embedding.EmbeddingStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -166,7 +167,12 @@ public class ClientAiController extends BaseController {
         // 2. 调用 Elasticsearch kNN 检索，取相似度 >= SIMILARITY_THRESHOLD 的 Top-K 块
         List<EmbeddingMatch<TextSegment>> matches;
         try {
-            matches = embeddingStore.findRelevant(queryEmbedding, topK, SIMILARITY_THRESHOLD);
+            EmbeddingSearchRequest searchRequest = EmbeddingSearchRequest.builder()
+                    .queryEmbedding(queryEmbedding)
+                    .maxResults(topK)
+                    .minScore(SIMILARITY_THRESHOLD)
+                    .build();
+            matches = embeddingStore.search(searchRequest).matches();
         } catch (Exception e) {
             // 知识库索引尚未创建（首次部署未摄取任何知识）或 ES 暂时不可用，降级为空上下文
             log.warn("Elasticsearch 检索失败，降级为空上下文（LLM 将凭通用知识回答）：{}", e.getMessage());
