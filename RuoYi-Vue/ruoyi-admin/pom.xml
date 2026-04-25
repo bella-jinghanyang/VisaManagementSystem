@@ -108,6 +108,28 @@
             <version>0.36.2</version>
         </dependency>
 
+        <!--
+            Jakarta JSON Processing API（jakarta.json-api）：
+            Elasticsearch Java 客户端 8.x 在运行时依赖 jakarta/json/stream/JsonGenerator 接口。
+            Spring Boot 2.x 不会自动传递该依赖（Spring Boot 3.x 才切换到 jakarta 命名空间），
+            因此必须显式声明，否则启动时抛出 NoClassDefFoundError: jakarta/json/stream/JsonGenerator。
+        -->
+        <dependency>
+            <groupId>jakarta.json</groupId>
+            <artifactId>jakarta.json-api</artifactId>
+            <version>2.1.3</version>
+        </dependency>
+
+        <!--
+            Eclipse Parsson：jakarta.json-api 的运行时实现（Elasticsearch 客户端内部使用）。
+            仅声明 API 而不提供实现会在运行时引发 ClassNotFoundException，必须同时引入实现。
+        -->
+        <dependency>
+            <groupId>org.eclipse.parsson</groupId>
+            <artifactId>parsson</artifactId>
+            <version>1.1.6</version>
+        </dependency>
+
         <!-- MinIO 客户端：对象存储，持久化签证政策原始文档（PDF / Word） -->
         <!-- 8.6.0 修复 XML Tag Value Substitution 安全漏洞（CVE，影响 < 8.6.0） -->
         <dependency>
