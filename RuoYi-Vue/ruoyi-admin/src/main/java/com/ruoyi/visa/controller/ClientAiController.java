@@ -22,6 +22,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * 智能签证助手 API（RAG 架构 · Elasticsearch 版）
@@ -175,15 +176,19 @@ public class ClientAiController extends BaseController {
             return "";
         }
 
-        // 2. 调用 Elasticsearch kNN 检索，取相似度 >= SIMILARITY_THRESHOLD 的 Top-K 块
+        // 2. 调用 Elasticsearch kNN 检索，取 Top-K 块，再在 Java 侧按相似度阈值过滤。
+        //    注意：不将 minScore 传入 EmbeddingSearchRequest，以避免 Elasticsearch 8.x
+        //    在索引为空时将 min_score 与 knn 查询组合使用而引发的
+        //    search_phase_execution_exception（all shards failed）。
         List<EmbeddingMatch<TextSegment>> matches;
         try {
             EmbeddingSearchRequest searchRequest = EmbeddingSearchRequest.builder()
                     .queryEmbedding(queryEmbedding)
                     .maxResults(topK)
-                    .minScore(SIMILARITY_THRESHOLD)
                     .build();
-            matches = embeddingStore.search(searchRequest).matches();
+            matches = embeddingStore.search(searchRequest).matches().stream()
+                    .filter(m -> m.score() >= SIMILARITY_THRESHOLD)
+                    .collect(Collectors.toList());
         } catch (Exception e) {
             // 知识库索引尚未创建（首次部署未摄取任何知识）或 ES 暂时不可用，降级为空上下文
             log.warn("Elasticsearch 检索失败，降级为空上下文（LLM 将凭通用知识回答）：{}", e.getMessage());

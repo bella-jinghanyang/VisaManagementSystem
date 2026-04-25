@@ -167,6 +167,7 @@ public class AiConfig {
         return ElasticsearchEmbeddingStore.builder()
                 .restClient(restClient)
                 .indexName(indexName)
+                .dimension(dimension)
                 .build();
     }
 
