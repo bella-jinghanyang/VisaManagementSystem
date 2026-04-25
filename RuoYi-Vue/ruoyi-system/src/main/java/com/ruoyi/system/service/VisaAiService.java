@@ -26,10 +26,10 @@ public class VisaAiService {
     private String baseUrl;
 
     /** SSE 连接保持时间上限（毫秒），与 OkHttp readTimeout 对齐 */
-    private static final long SSE_TIMEOUT_MS = 120_000L;
-
-    /** SSE 连接保持时间上限（毫秒），与 OkHttp readTimeout 对齐 */
     public static final long SSE_TIMEOUT_MS = 120_000L;
+
+
+
 
     private static final String SYSTEM_PROMPT =
             "你是一个专业的跨境签证助手。\n" +
