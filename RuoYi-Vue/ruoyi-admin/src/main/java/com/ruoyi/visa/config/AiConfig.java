@@ -4,6 +4,7 @@ import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import co.elastic.clients.json.jackson.JacksonJsonpMapper;
 import co.elastic.clients.transport.ElasticsearchTransport;
 import co.elastic.clients.transport.rest_client.RestClientTransport;
+import com.ruoyi.visa.controller.ClientAiController;
 import dev.langchain4j.data.segment.TextSegment;
 import dev.langchain4j.model.embedding.EmbeddingModel;
 import dev.langchain4j.model.openai.OpenAiEmbeddingModel;
@@ -13,6 +14,8 @@ import dev.langchain4j.store.embedding.elasticsearch.ElasticsearchEmbeddingStore
 import dev.langchain4j.store.embedding.EmbeddingStore;
 import org.apache.http.HttpHost;
 import org.elasticsearch.client.RestClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -36,6 +39,8 @@ import java.time.Duration;
  */
 @Configuration
 public class AiConfig {
+
+    private static final Logger log = LoggerFactory.getLogger(AiConfig.class);
 
     // ── DeepSeek 聊天模型配置 ──────────────────────────────────────────────
     @Value("${visa-ai.apiKey}")
@@ -146,13 +151,60 @@ public class AiConfig {
      * </ul>
      * <p>相比原有 MySQL 全表扫描方案，ES kNN 检索耗时不随知识库条目数线性增长，
      * 在万条规模下仍可保持亚百毫秒响应。</p>
+     *
+     * <p>Bean 初始化时会主动检查并创建 {@code indexName} 索引（若不存在），
+     * 避免知识库为空时首次 AI 查询因索引缺失而抛出 {@code index_not_found_exception}。
+     * 若 Elasticsearch 尚未就绪，此步骤会捕获异常并打印警告，
+     * 不影响 Spring 容器启动；检索阶段的防御性降级由 {@link ClientAiController} 保障。</p>
      */
     @Bean
-    public EmbeddingStore<TextSegment> elasticsearchEmbeddingStore(RestClient restClient) {
+    public EmbeddingStore<TextSegment> elasticsearchEmbeddingStore(
+            RestClient restClient, ElasticsearchClient esClient) {
+
+        // 主动确保索引存在，消灭首次检索时的 index_not_found_exception
+        ensureIndexExists(esClient);
+
         return ElasticsearchEmbeddingStore.builder()
                 .restClient(restClient)
                 .indexName(indexName)
-                .dimension(dimension)
                 .build();
+    }
+
+    /**
+     * 若 Elasticsearch 中不存在 {@code indexName} 索引，则创建包含 {@code dense_vector}
+     * 字段映射的新索引，使 RAG 检索在知识库为空时也不报 index_not_found_exception。
+     *
+     * <p>字段映射与 LangChain4j {@link ElasticsearchEmbeddingStore} 内部约定一致：</p>
+     * <ul>
+     *   <li>{@code vector}：{@code dense_vector} 类型，开启 kNN 索引，使用余弦相似度；</li>
+     *   <li>{@code text}：{@code text} 类型，存储知识块原文；</li>
+     *   <li>{@code metadata}：{@code object} 类型，disabled 以节省资源，按需检索时由 ES 返回。</li>
+     * </ul>
+     */
+    private void ensureIndexExists(ElasticsearchClient esClient) {
+        try {
+            boolean exists = esClient.indices().exists(r -> r.index(indexName)).value();
+            if (!exists) {
+                esClient.indices().create(c -> c
+                        .index(indexName)
+                        .mappings(m -> m
+                                .properties("vector", p -> p
+                                        .denseVector(dv -> dv
+                                                .dims(dimension)
+                                                .index(true)
+                                                .similarity("cosine")
+                                        ) // 关闭 denseVector 的定义
+                                ) // 关闭 vector 属性的定义
+                                .properties("text", p -> p.text(t -> t)) // 定义第二个属性 text
+                                .properties("metadata", p -> p.object(o -> o.enabled(false))) // 定义第三个属性 metadata
+                        ) // 关闭 mappings 定义
+                ); // 关闭 create 定义
+                log.info("Elasticsearch 索引 '{}' 已创建（维度={}）", indexName, dimension);
+            } else {
+                log.debug("Elasticsearch 索引 '{}' 已存在，跳过创建", indexName);
+            }
+        } catch (Exception e) {
+            log.warn("Elasticsearch 索引检查/创建失败，将在首次知识摄取时自动创建：{}", e.getMessage());
+        }
     }
 }

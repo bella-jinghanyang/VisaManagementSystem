@@ -42,3 +42,5 @@ export function delKnowledge(id) {
     method: 'delete'
   })
 }
+
+

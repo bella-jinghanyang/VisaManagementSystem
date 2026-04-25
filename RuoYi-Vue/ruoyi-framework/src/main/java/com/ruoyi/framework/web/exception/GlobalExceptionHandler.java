@@ -3,6 +3,7 @@ package com.ruoyi.framework.web.exception;
 import javax.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.BindException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
@@ -10,6 +11,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingPathVariableException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.async.AsyncRequestTimeoutException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import com.ruoyi.common.constant.HttpStatus;
 import com.ruoyi.common.core.domain.AjaxResult;
@@ -88,6 +90,22 @@ public class GlobalExceptionHandler
         }
         log.error("请求参数类型不匹配'{}',发生系统异常.", requestURI, e);
         return AjaxResult.error(String.format("请求参数类型不匹配，参数[%s]要求类型为：'%s'，但输入值为：'%s'", e.getName(), e.getRequiredType().getName(), value));
+    }
+
+    /**
+     * SSE / 异步请求超时
+     *
+     * <p>SSE 端点的 Content-Type 为 {@code text/event-stream}，全局异常处理器若直接返回
+     * {@link AjaxResult}（JSON），Spring 将因找不到合适的 MessageConverter 而二次抛出
+     * {@code HttpMediaTypeNotAcceptableException}。此处返回无响应体的 503，
+     * 避免该次生异常，同时让前端感知连接已断开。</p>
+     */
+    @ExceptionHandler(AsyncRequestTimeoutException.class)
+    public ResponseEntity<Void> handleAsyncRequestTimeoutException(AsyncRequestTimeoutException e,
+                                                                   HttpServletRequest request)
+    {
+        log.warn("请求地址'{}',异步请求超时.", request.getRequestURI());
+        return ResponseEntity.status(HttpStatus.ERROR).build();
     }
 
     /**

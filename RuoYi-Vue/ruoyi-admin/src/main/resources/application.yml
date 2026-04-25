@@ -147,7 +147,7 @@ alipay:
   gatewayUrl: https://openapi-sandbox.dl.alipaydev.com/gateway.do
 
 stripe:
-  secretKey: ${STRIPE_SECRET_KEY:sk_test_your_stripe_secret_key_here} # 请通过环境变量 STRIPE_SECRET_KEY 注入真实密钥
+  secretKey: sk_test_51TFSNzKKu2WnaqMsk12yLjlfyWI9aiSGdj8dtRjHp950uUnCMl4HJBvOPiDlQnIYCoNletqXtbsEPUuXIqUjK9KL00JYf1kjW2
   successUrl: http://localhost:1025/user/orders?payStatus=success # 支付成功跳转
   cancelUrl: http://localhost:1025/user/orders?payStatus=cancel   # 取消支付跳转
   frontendUrl: http://localhost:1025
