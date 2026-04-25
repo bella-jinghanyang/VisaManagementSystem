@@ -43,4 +43,20 @@ export function delKnowledge(id) {
   })
 }
 
+//上传原始文档（PDF / Word / Excel 等）并自动完成知识摄取
+export function uploadKnowledgeDoc(formData) {
+  return request({
+    url: '/visa/knowledge/upload-doc',
+    method: 'post',
+    data: formData,
+    headers: { 'Content-Type': 'multipart/form-data' }
+  })
+}
 
+// 批量刷新所有有效知识条目的语义向量，重建 Elasticsearch 索引
+export function refreshEmbeddings() {
+  return request({
+    url: '/visa/knowledge/refresh_all',
+    method: 'post'
+  })
+}

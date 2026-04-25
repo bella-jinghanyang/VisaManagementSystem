@@ -133,6 +133,7 @@ public class VisaKnowledgeController extends BaseController
         knowledge.setCategory(category);
         knowledge.setKeywords(keywords);
         knowledge.setStatus("0");
+        knowledge.setContent("");
         visaKnowledgeService.insertVisaKnowledge(knowledge);
 
         try {
