@@ -188,13 +188,13 @@ public class AiConfig {
                 esClient.indices().create(r -> r
                         .index(indexName)
                         .mappings(m -> m
-                                .properties("vector", p -> p
+                                .properties("vector", pv -> pv
                                         .denseVector(dv -> dv
                                                 .dims(dimension)
                                                 .index(true)
                                                 .similarity(DenseVectorSimilarity.Cosine)))
-                                .properties("text", p -> p.text(t -> t))
-                                .properties("metadata", p -> p.object(o -> o.enabled(false)))));
+                                .properties("text", pt -> pt.text(t -> t))
+                                .properties("metadata", pm -> pm.object(o -> o.enabled(false)))));
                 log.info("Elasticsearch 索引 '{}' 已创建（维度={}）", indexName, dimension);
             } else {
                 log.debug("Elasticsearch 索引 '{}' 已存在，跳过创建", indexName);
