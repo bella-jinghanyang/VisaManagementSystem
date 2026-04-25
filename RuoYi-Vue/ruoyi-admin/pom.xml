@@ -163,10 +163,30 @@
             ruoyi-common 模块同样声明 4.9.3，此处统一版本以避免 Maven 多版本冲突。
 
             MinIO 8.5.x 同样编译时针对 OkHttp 4.x，配合下方声明可正常工作。
+
+            重要：okhttp-sse 是独立 artifact，必须与 okhttp 保持相同版本。
+            若 Stripe SDK 或其他传递依赖将 okhttp-sse 拉至 4.10.0+，
+            则 RealEventSource（位于 okhttp-sse 内）将丢失 `instance` 字段，
+            仍会引发 NoSuchFieldError。必须同时显式声明 okhttp-sse:4.9.3。
         -->
         <dependency>
             <groupId>com.squareup.okhttp3</groupId>
             <artifactId>okhttp</artifactId>
+            <version>4.9.3</version>
+        </dependency>
+
+        <!--
+            okhttp-sse 4.9.3（与上方 okhttp 版本严格对齐）：
+
+            okhttp3.internal.sse.RealEventSource 位于 okhttp-sse artifact 中，
+            而非 okhttp 主包。只声明 okhttp:4.9.3 不足以固定 RealEventSource 的版本；
+            若 okhttp-sse 被传递依赖拉至 4.10.0+，其 RealEventSource 已移除 `instance`
+            字段，openai4j 在处理 SSE 响应时会抛出 NoSuchFieldError: instance。
+            显式声明此版本确保 okhttp 与 okhttp-sse 始终保持版本一致。
+        -->
+        <dependency>
+            <groupId>com.squareup.okhttp3</groupId>
+            <artifactId>okhttp-sse</artifactId>
             <version>4.9.3</version>
         </dependency>
 
