@@ -131,17 +131,21 @@
         </dependency>
 
         <!--
-            Apache HttpClient 5（httpclient5）：
-            Elasticsearch Java 客户端 8.x 的传输层（RestClient）在内部使用 HttpComponents 5.x API
-            （org.apache.hc.client5.*），其中 SafeResponseConsumer 等类引用了 HttpCore 5.x 的方法。
-            Spring Boot 2.x 默认只管理 HttpClient 4.x（org.apache.httpcomponents:httpclient），
-            不会自动引入 5.x 版本，导致启动时抛出 NoSuchMethodError。
-            必须显式声明 httpclient5，以确保两套 HttpClient 共存于 classpath。
+            Elasticsearch REST Client 8.15.3（显式声明，覆盖 Spring Boot 2.5.15 BOM 的版本钉定）：
+
+            Spring Boot 2.5.15 BOM 在 <dependencyManagement> 中将
+            org.elasticsearch.client:elasticsearch-rest-client 钉定为 7.12.1。
+            langchain4j-elasticsearch 0.36.2 传递引入的是 elasticsearch-java 8.15.3，
+            该版本在编译时依赖 elasticsearch-rest-client 8.15.3 的 API。
+            由于 BOM 的优先级高于传递声明，Maven 实际解析到的版本是 7.12.1，
+            导致 SafeResponseConsumer 在静态初始化时调用 RequestOptions.getHttpAsyncResponseConsumerFactory()
+            时抛出 NoSuchMethodError（该方法签名在 7.x 与 8.x 之间发生了变化）。
+            直接在 <dependencies> 中显式声明版本，可以覆盖 BOM 的版本管理。
         -->
         <dependency>
-            <groupId>org.apache.httpcomponents.client5</groupId>
-            <artifactId>httpclient5</artifactId>
-            <version>5.3.1</version>
+            <groupId>org.elasticsearch.client</groupId>
+            <artifactId>elasticsearch-rest-client</artifactId>
+            <version>8.15.3</version>
         </dependency>
 
         <!-- MinIO 客户端：对象存储，持久化签证政策原始文档（PDF / Word） -->
