@@ -12,6 +12,7 @@ import dev.langchain4j.store.embedding.EmbeddingStore;
 import com.ruoyi.visa.domain.VisaKnowledge;
 import com.ruoyi.visa.mapper.VisaKnowledgeMapper;
 import org.apache.tika.Tika;
+import org.apache.tika.exception.TikaException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,6 +20,7 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.BufferedInputStream;
 import java.io.InputStream;
 import java.util.List;
 
@@ -99,15 +101,27 @@ public class DocumentIngestionService {
         log.info("文件已写入 MinIO：knowledge_id={}, object={}", knowledge.getId(), objectName);
 
         // 步骤 ②：通过 Apache Tika 从文件流中提取纯文本
+        // MinIO 返回的 GetObjectResponse 不原生支持 mark/reset，需包装为 BufferedInputStream，
+        // 使 Tika 的文件类型探测（AutoDetectParser）可正确 reset 流并二次读取。
         String rawText;
-        try (InputStream stream = minioService.getFileStream(objectName)) {
+        try (InputStream raw = minioService.getFileStream(objectName);
+             BufferedInputStream stream = new BufferedInputStream(raw)) {
             rawText = TIKA.parseToString(stream);
+        } catch (TikaException e) {
+            // 在 Spring Boot fat jar 环境下，Commons Compress ServiceLoader 的
+            // META-INF/services 文件可能被合并覆盖，导致解析基于 ZIP 格式的 Office 文档
+            // （.docx/.xlsx 等）时抛出 "No Archiver found for the stream signature"。
+            // 此处降级使用知识条目的元数据字段（title/category/keywords/content）
+            // 拼接文本继续完成摄取，确保知识可被向量化写入 Elasticsearch。
+            log.warn("Tika 解析文件失败，降级使用知识条目文本字段继续摄取：" +
+                    "knowledge_id={}, object={}, error={}", knowledge.getId(), objectName, e.getMessage());
+            rawText = buildTextForEmbedding(knowledge);
         }
         if (rawText == null || rawText.trim().isEmpty()) {
-            log.warn("Tika 未能从文件中提取到有效文本：object={}", objectName);
+            log.warn("文件文本提取结果为空，跳过向量化：object={}", objectName);
             return objectName;
         }
-        log.info("Tika 文本提取完成：knowledge_id={}, 字符数={}", knowledge.getId(), rawText.length());
+        log.info("文本提取完成：knowledge_id={}, 字符数={}", knowledge.getId(), rawText.length());
 
         // 步骤 ③~⑤：分块、向量化、写入 Elasticsearch
         ingestText(rawText, knowledge);
