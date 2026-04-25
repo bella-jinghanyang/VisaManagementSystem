@@ -50,15 +50,19 @@ public class VisaKnowledgeServiceImpl implements IVisaKnowledgeService
     }
 
     /**
-     * 新增知识条目，并异步生成其语义向量。
-     * 异步化处理确保接口响应不受 Embedding API 网络延迟影响。
+     * 新增知识条目，并在内容不为空时异步生成其语义向量。
+     *
+     * <p>仅当 {@code content} 字段有实质内容时才触发向量化，避免在文档上传场景下
+     * （{@code content} 为空，由后续 Tika 解析填充）写入无意义的空向量至 Elasticsearch。</p>
      */
     @Override
     public int insertVisaKnowledge(VisaKnowledge visaKnowledge)
     {
         visaKnowledge.setCreateTime(DateUtils.getNowDate());
         int rows = visaKnowledgeMapper.insertVisaKnowledge(visaKnowledge);
-        if (rows > 0 && visaKnowledge.getId() != null) {
+        if (rows > 0 && visaKnowledge.getId() != null
+                && visaKnowledge.getContent() != null
+                && !visaKnowledge.getContent().trim().isEmpty()) {
             asyncGenerateAndSaveEmbedding(visaKnowledge.getId(), visaKnowledge);
         }
 
