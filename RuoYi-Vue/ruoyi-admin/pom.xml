@@ -85,6 +85,50 @@
             <optional>true</optional>
         </dependency>
 
+        <!-- ===== RAG 技术栈 ===== -->
+
+        <!-- LangChain4j 核心：统一 AI 组件接口（EmbeddingModel / ChatModel / DocumentSplitter） -->
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j</artifactId>
+            <version>0.36.2</version>
+        </dependency>
+
+        <!-- LangChain4j OpenAI 兼容适配器：同时对接 DeepSeek（聊天）和阿里云 DashScope（向量化） -->
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-open-ai</artifactId>
+            <version>0.36.2</version>
+        </dependency>
+
+        <!-- LangChain4j Elasticsearch 向量存储：替代 MySQL 全表扫描，提供 kNN 语义检索 -->
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-elasticsearch</artifactId>
+            <version>0.36.2</version>
+        </dependency>
+
+        <!-- MinIO 客户端：对象存储，持久化签证政策原始文档（PDF / Word） -->
+        <dependency>
+            <groupId>io.minio</groupId>
+            <artifactId>minio</artifactId>
+            <version>8.5.7</version>
+        </dependency>
+
+        <!-- Apache Tika 核心：自动识别文件类型，统一提取文档纯文本 -->
+        <dependency>
+            <groupId>org.apache.tika</groupId>
+            <artifactId>tika-core</artifactId>
+            <version>2.9.2</version>
+        </dependency>
+
+        <!-- Apache Tika 标准解析器包：支持 PDF / Word / Excel / PPT 等 1400+ 格式 -->
+        <dependency>
+            <groupId>org.apache.tika</groupId>
+            <artifactId>tika-parsers-standard-package</artifactId>
+            <version>2.9.2</version>
+        </dependency>
+
 
 
     </dependencies>

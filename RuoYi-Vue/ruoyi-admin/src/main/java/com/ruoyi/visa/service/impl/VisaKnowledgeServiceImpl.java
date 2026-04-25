@@ -3,12 +3,10 @@ package com.ruoyi.visa.service.impl;
 import java.util.List;
 
 import com.ruoyi.common.annotation.Anonymous;
-import com.ruoyi.visa.service.EmbeddingService;
+import com.ruoyi.visa.service.DocumentIngestionService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.context.event.ApplicationReadyEvent;
-import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import com.ruoyi.common.utils.DateUtils;
@@ -31,7 +29,7 @@ public class VisaKnowledgeServiceImpl implements IVisaKnowledgeService
     private VisaKnowledgeMapper visaKnowledgeMapper;
 
     @Autowired
-    private EmbeddingService embeddingService;
+    private DocumentIngestionService documentIngestionService;
 
     @Override
     public VisaKnowledge selectVisaKnowledgeById(Long id)
@@ -97,7 +95,7 @@ public class VisaKnowledgeServiceImpl implements IVisaKnowledgeService
     }
 
     /**
-     * 批量刷新所有有效知识条目的语义向量。
+     * 批量刷新所有有效知识条目的语义向量，并重建 Elasticsearch 索引。
      * 适用于首次上线或更换 Embedding 模型后的初始化操作。
      */
     @Anonymous
@@ -107,16 +105,15 @@ public class VisaKnowledgeServiceImpl implements IVisaKnowledgeService
         List<VisaKnowledge> list = visaKnowledgeMapper.selectAllActiveWithEmbedding();
         int count = 0;
         for (VisaKnowledge item : list) {
-            String text = buildTextForEmbedding(item);
-            List<Double> vector = embeddingService.embed(text);
-            if (!vector.isEmpty()) {
-                String json = embeddingService.vectorToJson(vector);
-                visaKnowledgeMapper.updateEmbeddingById(item.getId(), json);
+            try {
+                documentIngestionService.ingestTextAsync(item);
                 count++;
-                log.info("已生成向量：id={}, title={}", item.getId(), item.getTitle());
+                log.info("已提交向量刷新任务：id={}, title={}", item.getId(), item.getTitle());
+            } catch (Exception e) {
+                log.error("向量刷新任务提交失败：id={}, msg={}", item.getId(), e.getMessage());
             }
         }
-        log.info("知识库向量刷新完成，共更新 {} 条", count);
+        log.info("知识库向量刷新任务已全部提交，共 {} 条", count);
         return count;
     }
 
@@ -125,22 +122,12 @@ public class VisaKnowledgeServiceImpl implements IVisaKnowledgeService
     // =========================================================
 
     /**
-     * 异步生成并持久化向量，避免阻塞主流程。
-     * 需要在 Spring Boot 启动类上加 @EnableAsync 才能生效。
+     * 异步触发文档摄取（文本模式），写入 Elasticsearch 并更新 MySQL embedding 备份。
+     * 通过 {@link DocumentIngestionService} 统一处理分块、向量化、ES 写入三步流程。
      */
     @Async
     public void asyncGenerateAndSaveEmbedding(Long id, VisaKnowledge knowledge) {
-        try {
-            String text = buildTextForEmbedding(knowledge);
-            List<Double> vector = embeddingService.embed(text);
-            if (!vector.isEmpty()) {
-                String json = embeddingService.vectorToJson(vector);
-                visaKnowledgeMapper.updateEmbeddingById(id, json);
-                log.info("向量生成成功：id={}", id);
-            }
-        } catch (Exception e) {
-            log.error("向量生成异常：id={}, msg={}", id, e.getMessage());
-        }
+        documentIngestionService.ingestTextAsync(knowledge);
     }
 
     /**

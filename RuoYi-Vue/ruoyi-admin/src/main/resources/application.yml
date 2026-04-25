@@ -147,7 +147,7 @@ alipay:
   gatewayUrl: https://openapi-sandbox.dl.alipaydev.com/gateway.do
 
 stripe:
-  secretKey: sk_test_51TFSNzKKu2WnaqMsk12yLjlfyWI9aiSGdj8dtRjHp950uUnCMl4HJBvOPiDlQnIYCoNletqXtbsEPUuXIqUjK9KL00JYf1kjW2 # 填入你的测试私钥
+  secretKey: ${STRIPE_SECRET_KEY:sk_test_your_stripe_secret_key_here} # 请通过环境变量 STRIPE_SECRET_KEY 注入真实密钥
   successUrl: http://localhost:1025/user/orders?payStatus=success # 支付成功跳转
   cancelUrl: http://localhost:1025/user/orders?payStatus=cancel   # 取消支付跳转
   frontendUrl: http://localhost:1025
@@ -158,11 +158,33 @@ visa-ai:
   apiKey: sk-a42a91a879ed495585acab61ac77ede8
   # 模型名称，DeepSeek V3 统一用这个
   model: deepseek-chat
-  # API 地址
-  baseUrl: https://api.deepseek.com/chat/completions
+  # API 地址（去掉末尾路径，LangChain4j 会自动拼接 /chat/completions）
+  baseUrl: https://api.deepseek.com
+  # RAG 检索阶段返回的最大知识块数
+  topK: 3
   # --- 阿里云 DashScope 配置 (用于 RAG 向量化) ---
   embeddingApiKey: sk-95366ec6c1b84d39954098b12266d99e
   # 阿里云 OpenAI 兼容端点
   embeddingBaseUrl: https://dashscope.aliyuncs.com/compatible-mode/v1
   # 阿里云向量模型名称
   embeddingModel: text-embedding-v4
+
+# Elasticsearch 配置（向量存储，用于 RAG kNN 语义检索）
+elasticsearch:
+  # 单节点模式，本地开发用 docker 启动：
+  # docker run -d -p 9200:9200 -e "discovery.type=single-node" -e "xpack.security.enabled=false" elasticsearch:8.13.0
+  uris: http://localhost:9200
+  # 知识库向量索引名称
+  indexName: visa-knowledge
+  # 向量维度（与 text-embedding-v4 输出维度一致）
+  dimension: 1536
+
+# MinIO 对象存储配置（持久化签证政策原始文档）
+# 本地开发用 docker 启动：
+# docker run -d -p 9000:9000 -p 9001:9001 minio/minio server /data --console-address ":9001"
+minio:
+  endpoint: http://localhost:9000
+  accessKey: minioadmin
+  secretKey: minioadmin
+  # 存储知识库文档的 Bucket 名称
+  bucketName: visa-knowledge-docs
