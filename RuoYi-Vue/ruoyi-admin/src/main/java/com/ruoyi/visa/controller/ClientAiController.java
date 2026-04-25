@@ -190,8 +190,10 @@ public class ClientAiController extends BaseController {
                     .filter(m -> m.score() >= SIMILARITY_THRESHOLD)
                     .collect(Collectors.toList());
         } catch (Exception e) {
-            // 知识库索引尚未创建（首次部署未摄取任何知识）或 ES 暂时不可用，降级为空上下文
-            log.warn("Elasticsearch 检索失败，降级为空上下文（LLM 将凭通用知识回答）：{}", e.getMessage());
+            // 知识库索引尚未创建（首次部署未摄取任何知识）、索引为空时 kNN 查询异常，
+            // 或 ES 暂时不可用，均降级为空上下文，由 LLM 凭通用知识回答。
+            // 使用 DEBUG 级别避免在知识库空置期间产生持续噪音日志。
+            log.debug("Elasticsearch 检索失败，降级为空上下文（LLM 将凭通用知识回答）：{}", e.getMessage());
             return "";
         }
 
