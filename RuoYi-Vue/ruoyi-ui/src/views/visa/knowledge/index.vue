@@ -327,8 +327,15 @@ export default {
       this.uploadFile = null
       this.uploadOpen = true
     },
-    /** 文件选中回调 */
+    /** 文件选中回调：校验文件大小不超过 10MB */
     handleFileChange(file) {
+      const maxSize = 10 * 1024 * 1024
+      if (file.size > maxSize) {
+        this.$modal.msgWarning("文件大小不能超过 10MB，请重新选择")
+        this.$refs.upload.clearFiles()
+        this.uploadFile = null
+        return
+      }
       this.uploadFile = file.raw
     },
     /** 文件移除回调 */
@@ -354,7 +361,7 @@ export default {
           this.uploadOpen = false
           this.getList()
         }).catch(err => {
-          this.$modal.msgError("文档摄取失败：" + (err.message || '请查看后端日志'))
+          this.$modal.msgError("文档摄取失败，请稍后重试或联系技术支持")
         }).finally(() => {
           this.uploading = false
         })
