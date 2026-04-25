@@ -109,24 +109,26 @@
         </dependency>
 
         <!-- MinIO 客户端：对象存储，持久化签证政策原始文档（PDF / Word） -->
+        <!-- 8.6.0 修复 XML Tag Value Substitution 安全漏洞（CVE，影响 < 8.6.0） -->
         <dependency>
             <groupId>io.minio</groupId>
             <artifactId>minio</artifactId>
-            <version>8.5.7</version>
+            <version>8.6.0</version>
         </dependency>
 
         <!-- Apache Tika 核心：自动识别文件类型，统一提取文档纯文本 -->
+        <!-- 3.2.2 修复 XXE 注入漏洞（影响 1.13 ~ 3.2.1，需 Java 11+） -->
         <dependency>
             <groupId>org.apache.tika</groupId>
             <artifactId>tika-core</artifactId>
-            <version>2.9.2</version>
+            <version>3.2.2</version>
         </dependency>
 
         <!-- Apache Tika 标准解析器包：支持 PDF / Word / Excel / PPT 等 1400+ 格式 -->
         <dependency>
             <groupId>org.apache.tika</groupId>
             <artifactId>tika-parsers-standard-package</artifactId>
-            <version>2.9.2</version>
+            <version>3.2.2</version>
         </dependency>
 
 
