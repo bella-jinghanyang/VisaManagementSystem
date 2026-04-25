@@ -48,6 +48,9 @@ public class VisaAiService {
      */
     public static final long SSE_TIMEOUT_MS = 120_000L;
 
+
+
+
     private static final String SYSTEM_PROMPT =
             "你是一个专业的跨境签证助手。\n" +
             "1. 当【参考资料】中包含用户问题的答案时，请严格根据资料给出精准回答；\n" +
