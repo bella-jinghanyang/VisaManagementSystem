@@ -149,30 +149,31 @@
         </dependency>
 
         <!--
-            OkHttp 4.12.0（显式声明，覆盖 Spring Boot 2.5.15 BOM 的版本钉定）：
+            OkHttp 4.9.3（显式声明，覆盖 Spring Boot 2.5.15 BOM 的版本钉定）：
 
             Spring Boot 2.5.15 BOM 将 com.squareup.okhttp3:okhttp 钉定为 3.14.9。
             直接在 <dependencies> 中显式声明可覆盖 BOM 管理。
 
-            版本锁定在 4.12.0 的原因：
+            版本锁定在 4.9.3 的原因：
             LangChain4j 0.36.2 内置的 openai4j 在实现 SSE 流式调用时，通过
             EventSources.createFactory() 间接使用了 OkHttp 内部类
             okhttp3.internal.sse.RealEventSource，该类的内部字段（`instance`）
-            在 OkHttp 5.x 中被移除，导致运行时抛出 NoSuchFieldError: instance。
-            openai4j 编译时目标版本为 OkHttp 4.12.0，因此必须保持一致。
+            在 OkHttp 4.10.0 起被重构移除，导致运行时抛出 NoSuchFieldError: instance。
+            openai4j 编译时目标版本为 OkHttp 4.9.x，必须保持一致。
+            ruoyi-common 模块同样声明 4.9.3，此处统一版本以避免 Maven 多版本冲突。
 
             MinIO 8.5.x 同样编译时针对 OkHttp 4.x，配合下方声明可正常工作。
         -->
         <dependency>
             <groupId>com.squareup.okhttp3</groupId>
             <artifactId>okhttp</artifactId>
-            <version>4.12.0</version>
+            <version>4.9.3</version>
         </dependency>
 
         <!-- MinIO 客户端：对象存储，持久化签证政策原始文档（PDF / Word） -->
         <!--
             使用 8.5.17（8.5.x 系列最新补丁）：
-            MinIO 8.5.x 编译时针对 OkHttp 4.x，与上方 okhttp 4.12.0 版本兼容。
+            MinIO 8.5.x 编译时针对 OkHttp 4.x，与上方 okhttp 4.9.3 版本兼容。
             MinIO 8.6.0 起切换到 OkHttp 5.x；若升级至 8.6.0+ 则须同步将 okhttp
             升级至 5.x，但会导致 openai4j SSE 出现 NoSuchFieldError（见上方注释）。
             GitHub Advisory Database 确认 8.5.17 无已知安全漏洞。

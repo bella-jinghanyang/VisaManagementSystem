@@ -98,6 +98,17 @@ public class ClientAiController extends BaseController {
         // ── 步骤 2：创建 SseEmitter，超时时间与 LLM readTimeout 对齐 ─────
         SseEmitter emitter = new SseEmitter(VisaAiService.SSE_TIMEOUT_MS);
 
+        // 超时时主动完成 emitter，避免 Spring 抛出 AsyncRequestTimeoutException
+        // 并引发次生的 HttpMediaTypeNotAcceptableException
+        emitter.onTimeout(() -> {
+            log.warn("SSE 连接超时，orderId={}, customerId={}", oid, cid);
+            emitter.complete();
+        });
+        emitter.onError(t -> {
+            log.error("SSE 连接发生错误", t);
+            emitter.complete();
+        });
+
         // ── 步骤 3：后台线程执行 RAG 检索 + 模型调用 ───────────────────────
         new Thread(() -> {
             String context = retrieveContext(q);
