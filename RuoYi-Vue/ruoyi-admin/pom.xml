@@ -148,12 +148,33 @@
             <version>8.15.3</version>
         </dependency>
 
+        <!--
+            OkHttp 4.12.0（显式声明，覆盖 Spring Boot 2.5.15 BOM 的版本钉定）：
+
+            Spring Boot 2.5.15 BOM 在 <dependencyManagement> 中将 com.squareup.okhttp3:okhttp 钉定为 3.14.9。
+            MinIO 8.5.x 与 LangChain4j 0.36.2（通过 openai4j）均在编译时依赖 OkHttp 4.12.0 的 API。
+            由于 BOM 优先级高于传递依赖声明，Maven 实际解析到 3.14.9，导致 S3Base 等类在静态初始化
+            时调用 3.x 中不存在的方法，抛出 NoSuchMethodError。
+            直接在 <dependencies> 中显式声明版本可覆盖 BOM 管理。
+        -->
+        <dependency>
+            <groupId>com.squareup.okhttp3</groupId>
+            <artifactId>okhttp</artifactId>
+            <version>4.12.0</version>
+        </dependency>
+
         <!-- MinIO 客户端：对象存储，持久化签证政策原始文档（PDF / Word） -->
-        <!-- 8.6.0 修复 XML Tag Value Substitution 安全漏洞（CVE，影响 < 8.6.0） -->
+        <!--
+            使用 8.5.17：
+            - 依赖 OkHttp 4.12.0，与 LangChain4j 0.36.2 及上方显式声明版本保持一致，避免冲突。
+            - MinIO 8.6.0 升级到 OkHttp 5.x（alpha），在 Spring Boot 2.x / Java 8 环境下会
+              因 BOM 降级和 API 变更引发 NoSuchMethodError。
+            - GitHub Advisory Database 确认 8.5.17 无已知安全漏洞。
+        -->
         <dependency>
             <groupId>io.minio</groupId>
             <artifactId>minio</artifactId>
-            <version>8.6.0</version>
+            <version>8.5.17</version>
         </dependency>
 
         <!-- Apache Tika 核心：自动识别文件类型，统一提取文档纯文本 -->
