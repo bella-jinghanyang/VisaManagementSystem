@@ -85,6 +85,119 @@
             <optional>true</optional>
         </dependency>
 
+        <!-- ===== RAG 技术栈 ===== -->
+
+        <!-- LangChain4j 核心：统一 AI 组件接口（EmbeddingModel / ChatModel / DocumentSplitter） -->
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j</artifactId>
+            <version>0.36.2</version>
+        </dependency>
+
+        <!-- LangChain4j OpenAI 兼容适配器：同时对接 DeepSeek（聊天）和阿里云 DashScope（向量化） -->
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-open-ai</artifactId>
+            <version>0.36.2</version>
+        </dependency>
+
+        <!-- LangChain4j Elasticsearch 向量存储：替代 MySQL 全表扫描，提供 kNN 语义检索 -->
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-elasticsearch</artifactId>
+            <version>0.36.2</version>
+        </dependency>
+
+        <!--
+            Jakarta JSON Processing API（jakarta.json-api）：
+            Elasticsearch Java 客户端 8.x 在运行时依赖 jakarta/json/stream/JsonGenerator 接口。
+            Spring Boot 2.x 不会自动传递该依赖（Spring Boot 3.x 才切换到 jakarta 命名空间），
+            因此必须显式声明，否则启动时抛出 NoClassDefFoundError: jakarta/json/stream/JsonGenerator。
+        -->
+        <dependency>
+            <groupId>jakarta.json</groupId>
+            <artifactId>jakarta.json-api</artifactId>
+            <version>2.1.3</version>
+        </dependency>
+
+        <!--
+            Eclipse Parsson：jakarta.json-api 的运行时实现（Elasticsearch 客户端内部使用）。
+            仅声明 API 而不提供实现会在运行时引发 ClassNotFoundException，必须同时引入实现。
+        -->
+        <dependency>
+            <groupId>org.eclipse.parsson</groupId>
+            <artifactId>parsson</artifactId>
+            <version>1.1.6</version>
+        </dependency>
+
+        <!--
+            Elasticsearch REST Client 8.15.3（显式声明，覆盖 Spring Boot 2.5.15 BOM 的版本钉定）：
+
+            Spring Boot 2.5.15 BOM 在 <dependencyManagement> 中将
+            org.elasticsearch.client:elasticsearch-rest-client 钉定为 7.12.1。
+            langchain4j-elasticsearch 0.36.2 传递引入的是 elasticsearch-java 8.15.3，
+            该版本在编译时依赖 elasticsearch-rest-client 8.15.3 的 API。
+            由于 BOM 的优先级高于传递声明，Maven 实际解析到的版本是 7.12.1，
+            导致 SafeResponseConsumer 在静态初始化时调用 RequestOptions.getHttpAsyncResponseConsumerFactory()
+            时抛出 NoSuchMethodError（该方法签名在 7.x 与 8.x 之间发生了变化）。
+            直接在 <dependencies> 中显式声明版本，可以覆盖 BOM 的版本管理。
+        -->
+        <dependency>
+            <groupId>org.elasticsearch.client</groupId>
+            <artifactId>elasticsearch-rest-client</artifactId>
+            <version>8.15.3</version>
+        </dependency>
+
+        <!--
+            OkHttp 4.12.0（显式声明，覆盖 Spring Boot 2.5.15 BOM 的版本钉定）：
+
+            Spring Boot 2.5.15 BOM 将 com.squareup.okhttp3:okhttp 钉定为 3.14.9。
+            直接在 <dependencies> 中显式声明可覆盖 BOM 管理。
+
+            版本锁定在 4.12.0 的原因：
+            LangChain4j 0.36.2 内置的 openai4j 在实现 SSE 流式调用时，通过
+            EventSources.createFactory() 间接使用了 OkHttp 内部类
+            okhttp3.internal.sse.RealEventSource，该类的内部字段（`instance`）
+            在 OkHttp 5.x 中被移除，导致运行时抛出 NoSuchFieldError: instance。
+            openai4j 编译时目标版本为 OkHttp 4.12.0，因此必须保持一致。
+
+            MinIO 8.5.x 同样编译时针对 OkHttp 4.x，配合下方声明可正常工作。
+        -->
+        <dependency>
+            <groupId>com.squareup.okhttp3</groupId>
+            <artifactId>okhttp</artifactId>
+            <version>4.12.0</version>
+        </dependency>
+
+        <!-- MinIO 客户端：对象存储，持久化签证政策原始文档（PDF / Word） -->
+        <!--
+            使用 8.5.17（8.5.x 系列最新补丁）：
+            MinIO 8.5.x 编译时针对 OkHttp 4.x，与上方 okhttp 4.12.0 版本兼容。
+            MinIO 8.6.0 起切换到 OkHttp 5.x；若升级至 8.6.0+ 则须同步将 okhttp
+            升级至 5.x，但会导致 openai4j SSE 出现 NoSuchFieldError（见上方注释）。
+            GitHub Advisory Database 确认 8.5.17 无已知安全漏洞。
+        -->
+        <dependency>
+            <groupId>io.minio</groupId>
+            <artifactId>minio</artifactId>
+            <version>8.5.17</version>
+        </dependency>
+
+        <!-- Apache Tika 核心：自动识别文件类型，统一提取文档纯文本 -->
+        <!-- 3.2.2 修复 XXE 注入漏洞（影响 1.13 ~ 3.2.1，需 Java 11+） -->
+        <dependency>
+            <groupId>org.apache.tika</groupId>
+            <artifactId>tika-core</artifactId>
+            <version>3.2.2</version>
+        </dependency>
+
+        <!-- Apache Tika 标准解析器包：支持 PDF / Word / Excel / PPT 等 1400+ 格式 -->
+        <dependency>
+            <groupId>org.apache.tika</groupId>
+            <artifactId>tika-parsers-standard-package</artifactId>
+            <version>3.2.2</version>
+        </dependency>
+
 
 
     </dependencies>

@@ -6,9 +6,14 @@ import com.ruoyi.common.core.domain.AjaxResult;
 import com.ruoyi.visa.service.EmbeddingService;
 import com.ruoyi.system.service.VisaAiService;
 import com.ruoyi.visa.domain.OrderMessage;
-import com.ruoyi.visa.domain.VisaKnowledge;
 import com.ruoyi.visa.service.IOrderMessageService;
-import com.ruoyi.visa.service.IVisaKnowledgeService;
+import dev.langchain4j.data.embedding.Embedding;
+import dev.langchain4j.data.segment.TextSegment;
+import dev.langchain4j.store.embedding.EmbeddingMatch;
+import dev.langchain4j.store.embedding.EmbeddingSearchRequest;
+import dev.langchain4j.store.embedding.EmbeddingStore;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
@@ -17,21 +22,21 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.Comparator;
 import java.util.List;
-import java.util.stream.Collectors;
-
-import static com.ruoyi.framework.datasource.DynamicDataSourceContextHolder.log;
 
 /**
- * 智能签证助手 API（RAG 架构）
+ * 智能签证助手 API（RAG 架构 · Elasticsearch 版）
  *
- * <p>检索流程：
+ * <p>检索流程（重构后）：</p>
  * <ol>
- *   <li>将用户问题通过 Embedding API 转化为查询向量；</li>
- *   <li>加载知识库全量条目，逐一计算与查询向量的余弦相似度；</li>
- *   <li>取相似度最高的 Top-K 条目作为上下文（Context）；</li>
- *   <li>将 Context 与问题拼装为 Prompt，调用大语言模型生成最终回答。</li>
+ *   <li>通过 LangChain4j {@link EmbeddingService} 将用户问题向量化；</li>
+ *   <li>调用 {@link EmbeddingStore}（ElasticsearchEmbeddingStore）执行 kNN 语义检索，
+ *       直接返回 Top-K 最相关文本块，无需全表扫描；</li>
+ *   <li>将检索结果拼装为上下文字符串，注入 LLM Prompt；</li>
+ *   <li>通过 {@link VisaAiService} 以 SSE 流式协议推送 DeepSeek-V3 回答。</li>
  * </ol>
- * </p>
+ *
+ * <p>相比原实现，本版本将 RAG 检索的时间复杂度从 O(N) 降至近似 O(log N)，
+ * 在知识库规模增长后仍能保持亚百毫秒级检索响应。</p>
  *
  * @author bella
  */
@@ -39,11 +44,13 @@ import static com.ruoyi.framework.datasource.DynamicDataSourceContextHolder.log;
 @RequestMapping("/client/ai")
 public class ClientAiController extends BaseController {
 
-    /** RAG 检索阶段返回的最大知识条目数 */
+    private static final Logger log = LoggerFactory.getLogger(ClientAiController.class);
+
+    /** RAG 检索阶段返回的最大知识块数 */
     @Value("${visa-ai.topK:3}")
     private int topK;
 
-    /** 余弦相似度最低阈值，低于此值的条目视为无关，不纳入上下文 */
+    /** 余弦相似度最低阈值，低于此值的块视为无关，不纳入上下文 */
     private static final double SIMILARITY_THRESHOLD = 0.3;
 
     @Autowired
@@ -53,7 +60,7 @@ public class ClientAiController extends BaseController {
     private EmbeddingService embeddingService;
 
     @Autowired
-    private IVisaKnowledgeService knowledgeService;
+    private EmbeddingStore<TextSegment> embeddingStore;
 
     @Autowired
     private IOrderMessageService messageService;
@@ -63,17 +70,7 @@ public class ClientAiController extends BaseController {
      *
      * <p>接口采用 Server-Sent Events 协议，返回 {@code text/event-stream} 响应流。
      * 每个 SSE 事件携带一个 JSON 编码的文本 token；当收到 {@code data: [DONE]} 事件时
-     * 表示模型生成完毕，前端应关闭 {@link EventSource} 连接。</p>
-     *
-     * <p>处理流程：
-     * <ol>
-     *   <li>同步持久化用户消息；</li>
-     *   <li>在后台线程中执行 RAG 检索与模型调用，避免阻塞 Servlet 线程；</li>
-     *   <li>每个 token 到达时立即通过 {@link SseEmitter} 推送，首字节延迟
-     *       由大模型推理速度决定（通常 500ms～1.5s），满足 Miller 两秒交互阈值；</li>
-     *   <li>流结束后将完整回答一次性写入数据库。</li>
-     * </ol>
-     * </p>
+     * 表示模型生成完毕，前端应关闭 {@link java.util.EventSource} 连接。</p>
      *
      * @param q          用户问题
      * @param orderId    关联订单 ID（可选，为 0 时表示通用咨询）
@@ -98,16 +95,16 @@ public class ClientAiController extends BaseController {
         userMsg.setIsAi("1");
         messageService.insertOrderMessage(userMsg);
 
-        // ── 步骤 2：创建 SseEmitter，超时时间与 OkHttp readTimeout 对齐 ──
+        // ── 步骤 2：创建 SseEmitter，超时时间与 LLM readTimeout 对齐 ─────
         SseEmitter emitter = new SseEmitter(VisaAiService.SSE_TIMEOUT_MS);
 
-        // ── 步骤 3：后台线程执行 RAG + 模型调用，避免阻塞 Servlet 线程 ──
+        // ── 步骤 3：后台线程执行 RAG 检索 + 模型调用 ───────────────────────
         new Thread(() -> {
             String context = retrieveContext(q);
-            log.info("检索到的上下文内容: {}", context);
+            log.info("RAG 检索上下文：{}", context);
 
             aiService.streamAiResponse(q, context, emitter, fullText -> {
-                // ── 步骤 4：流结束后持久化完整 AI 回答 ────────────────
+                // ── 步骤 4：流结束后持久化完整 AI 回答 ────────────────────
                 OrderMessage aiMsg = new OrderMessage();
                 aiMsg.setOrderId(oid);
                 aiMsg.setCustomerId(cid);
@@ -141,59 +138,62 @@ public class ClientAiController extends BaseController {
     }
 
     // =========================================================
-    //  私有方法：RAG 检索阶段
+    //  私有方法：RAG 检索阶段（Elasticsearch kNN 版）
     // =========================================================
 
     /**
-     * 基于语义向量检索最相关的知识条目，并拼装为 LLM 可直接使用的上下文字符串。
+     * 基于 Elasticsearch kNN 向量检索，返回最相关知识块并拼装为 LLM 上下文字符串。
      *
-     * <p>算法步骤：
+     * <p>算法步骤：</p>
      * <ol>
-     *   <li>将用户问题向量化（调用 Embedding API）；</li>
-     *   <li>从数据库加载全部有效知识条目（含预存向量）；</li>
-     *   <li>计算每条知识与查询向量的余弦相似度；</li>
-     *   <li>按相似度降序排序，取 Top-K 且高于阈值的条目；</li>
-     *   <li>将命中条目的标题与内容拼接为纯文本，返回给 VisaAiService。</li>
+     *   <li>将用户问题通过 LangChain4j {@link EmbeddingService} 向量化；</li>
+     *   <li>调用 {@link EmbeddingStore#findRelevant} 执行 Elasticsearch kNN ANN 检索，
+     *       直接返回 Top-K 相关文本块，无需加载全量知识库到内存；</li>
+     *   <li>过滤低于相似度阈值的块，将命中块的标题与文本拼接为上下文字符串。</li>
      * </ol>
-     * </p>
      *
      * @param question 用户的原始问题
-     * @return 检索到的上下文文本；若知识库中无相关内容则返回空字符串
+     * @return 检索到的上下文文本；知识库无相关内容时返回空字符串
      */
     private String retrieveContext(String question) {
         // 1. 对用户问题进行向量化
-        List<Double> queryVector = embeddingService.embed(question);
-        if (queryVector.isEmpty()) {
-            // Embedding API 不可用时，降级为空上下文，让 LLM 凭通用知识回答
+        Embedding queryEmbedding = embeddingService.embed(question);
+        if (queryEmbedding.vector().length == 0) {
+            // Embedding API 不可用时降级为空上下文，由 LLM 凭通用知识回答
+            log.warn("问题向量化失败，降级为空上下文：question={}", question);
             return "";
         }
 
-        // 2. 加载知识库全量条目（含向量字段）
-        List<VisaKnowledge> allDocs = knowledgeService.selectAllActiveWithEmbedding();
-        if (allDocs.isEmpty()) {
+        // 2. 调用 Elasticsearch kNN 检索，取相似度 >= SIMILARITY_THRESHOLD 的 Top-K 块
+        List<EmbeddingMatch<TextSegment>> matches;
+        try {
+            EmbeddingSearchRequest searchRequest = EmbeddingSearchRequest.builder()
+                    .queryEmbedding(queryEmbedding)
+                    .maxResults(topK)
+                    .minScore(SIMILARITY_THRESHOLD)
+                    .build();
+            matches = embeddingStore.search(searchRequest).matches();
+        } catch (Exception e) {
+            // 知识库索引尚未创建（首次部署未摄取任何知识）或 ES 暂时不可用，降级为空上下文
+            log.warn("Elasticsearch 检索失败，降级为空上下文（LLM 将凭通用知识回答）：{}", e.getMessage());
             return "";
         }
 
-        // 3. 计算余弦相似度并按降序排序
-        List<VisaKnowledge> ranked = allDocs.stream()
-                .filter(doc -> doc.getEmbedding() != null && !doc.getEmbedding().isEmpty())
-                .sorted(Comparator.comparingDouble((VisaKnowledge doc) -> {
-                    List<Double> docVector = embeddingService.jsonToVector(doc.getEmbedding());
-                    return embeddingService.cosineSimilarity(queryVector, docVector);
-                }).reversed())
-                .limit(topK)
-                .collect(Collectors.toList());
+        if (matches.isEmpty()) {
+            log.info("知识库中未检索到相关内容：question={}", question);
+            return "";
+        }
 
-        // 4. 过滤低相似度结果，并拼装上下文文本
+        // 3. 拼装上下文字符串，注入 Prompt
         StringBuilder ctx = new StringBuilder();
-        for (VisaKnowledge doc : ranked) {
-            List<Double> docVector = embeddingService.jsonToVector(doc.getEmbedding());
-            double sim = embeddingService.cosineSimilarity(queryVector, docVector);
-            log.info("知识条目：{}，相似度分数：{}", doc.getTitle(), sim);
-            if (sim >= SIMILARITY_THRESHOLD) {
-                ctx.append("【").append(doc.getTitle()).append("】\n");
-                ctx.append(doc.getContent()).append("\n---\n");
-            }
+        for (EmbeddingMatch<TextSegment> match : matches) {
+            TextSegment segment = match.embedded();
+            String title    = segment.metadata().getString("title");
+            String category = segment.metadata().getString("category");
+            log.info("命中知识块：title={}, category={}, score={}",
+                    title, category, match.score());
+            ctx.append("【").append(title != null ? title : "相关知识").append("】\n");
+            ctx.append(segment.text()).append("\n---\n");
         }
         return ctx.toString();
     }

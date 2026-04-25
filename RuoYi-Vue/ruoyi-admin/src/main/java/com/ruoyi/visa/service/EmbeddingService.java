@@ -1,28 +1,30 @@
 package com.ruoyi.visa.service;
 
-import com.alibaba.fastjson2.JSON;
-import com.alibaba.fastjson2.JSONArray;
-import com.alibaba.fastjson2.JSONObject;
-import okhttp3.*;
+import dev.langchain4j.data.embedding.Embedding;
+import dev.langchain4j.model.embedding.EmbeddingModel;
+import dev.langchain4j.model.output.Response;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 /**
  * 语义向量化服务（RAG 核心组件之一）
  *
- * <p>负责两项职责：</p>
- * <ol>
- *   <li>调用 Embedding API，将文本转化为高维浮点向量；</li>
- *   <li>提供余弦相似度计算方法，用于在检索阶段衡量查询向量与知识条目向量的语义距离。</li>
- * </ol>
+ * <p>原实现通过手写 OkHttp 请求调用 Embedding API，存在代码量大、
+ * 难以切换模型、异常处理分散等问题。</p>
+ *
+ * <p>重构后本类作为 LangChain4j {@link EmbeddingModel} 的轻量适配层，
+ * 将底层 HTTP 协议细节完全交由框架处理：</p>
+ * <ul>
+ *   <li>模型切换：仅需修改 {@code AiConfig} 中的配置，无需改动此类；</li>
+ *   <li>向量化：调用 {@link #embed(String)} 即可获得 LangChain4j {@link Embedding} 对象；</li>
+ *   <li>向量检索：已由 {@code ElasticsearchEmbeddingStore} 的 kNN 接口接管，
+ *       原手写余弦相似度方法不再需要。</li>
+ * </ul>
  *
  * @author bella
  */
@@ -31,134 +33,47 @@ public class EmbeddingService {
 
     private static final Logger log = LoggerFactory.getLogger(EmbeddingService.class);
 
-    @Value("${visa-ai.embeddingApiKey}")
-    private String apiKey;
-
-    @Value("${visa-ai.embeddingBaseUrl}")
-    private String embeddingBaseUrl;
-
-    @Value("${visa-ai.embeddingModel}")
-    private String embeddingModel;
-
-    private final OkHttpClient httpClient = new OkHttpClient.Builder()
-            .connectTimeout(120, TimeUnit.SECONDS)
-            .readTimeout(120, TimeUnit.SECONDS)
-            .build();
-
-    // =========================================================
-    //  公开方法
-    // =========================================================
+    @Autowired
+    private EmbeddingModel embeddingModel;
 
     /**
-     * 将给定文本转化为语义向量。
+     * 将给定文本转化为语义向量（LangChain4j {@link Embedding} 类型）。
      *
-     * <p>调用符合 OpenAI 协议的 Embedding API（本系统默认接入 DeepSeek）。
-     * 返回的浮点数组即为文本在高维语义空间中的坐标表示。</p>
+     * <p>内部委托给 {@link EmbeddingModel}（当前为阿里云 DashScope text-embedding-v4），
+     * 框架自动处理重试、超时、响应解析等细节。</p>
      *
-     * @param text 待向量化的文本（可为用户问题，也可为知识条目拼接后的文本）
-     * @return 浮点向量列表；若 API 调用失败则返回空列表
+     * @param text 待向量化的文本（可为用户问题或知识条目拼接文本）
+     * @return {@link Embedding} 对象，包含 float[] 向量；API 调用失败时返回零向量
      */
-    public List<Double> embed(String text) {
+    public Embedding embed(String text) {
         if (text == null || text.trim().isEmpty()) {
-            return Collections.emptyList();
-        }
-
-        JSONObject requestBody = new JSONObject();
-        requestBody.put("model", embeddingModel);
-        requestBody.put("input", text);
-        String endpoint = embeddingBaseUrl.endsWith("/")
-                ? embeddingBaseUrl + "embeddings"
-                : embeddingBaseUrl + "/embeddings";
-
-
-        Request request = new Request.Builder()
-                .url(endpoint)
-                .addHeader("Authorization", "Bearer " + apiKey)
-                .addHeader("Content-Type", "application/json")
-                .post(RequestBody.create(
-                        MediaType.parse("application/json; charset=utf-8"),
-                        requestBody.toJSONString()))
-                .build();
-
-        try (Response response = httpClient.newCall(request).execute()) {
-            if (!response.isSuccessful() || response.body() == null) {
-                log.error("Embedding API 调用失败，状态码：{}", response.code());
-                return Collections.emptyList();
-            }
-            JSONObject json = JSON.parseObject(response.body().string());
-            JSONArray embeddingArray = json.getJSONArray("data")
-                    .getJSONObject(0)
-                    .getJSONArray("embedding");
-
-            List<Double> vector = new ArrayList<>(embeddingArray.size());
-            for (int i = 0; i < embeddingArray.size(); i++) {
-                vector.add(embeddingArray.getDouble(i));
-            }
-            return vector;
-
-        } catch (IOException e) {
-            log.error("Embedding API 网络异常：{}", e.getMessage());
-            return Collections.emptyList();
-        }
-    }
-
-    /**
-     * 将向量列表序列化为 JSON 字符串，用于持久化存储到数据库。
-     */
-    public String vectorToJson(List<Double> vector) {
-        return JSON.toJSONString(vector);
-    }
-
-    /**
-     * 将数据库中存储的 JSON 字符串反序列化为向量列表。
-     */
-    public List<Double> jsonToVector(String json) {
-        if (json == null || json.isEmpty()) {
-            return Collections.emptyList();
+            return Embedding.from(new float[0]);
         }
         try {
-            JSONArray arr = JSON.parseArray(json);
-            List<Double> vector = new ArrayList<>(arr.size());
-            for (int i = 0; i < arr.size(); i++) {
-                vector.add(arr.getDouble(i));
-            }
-            return vector;
+            Response<Embedding> response = embeddingModel.embed(text);
+            return response.content();
         } catch (Exception e) {
-            log.warn("向量反序列化失败：{}", e.getMessage());
-            return Collections.emptyList();
+            log.error("EmbeddingModel 调用失败：{}", e.getMessage(), e);
+            return Embedding.from(new float[0]);
         }
     }
 
     /**
-     * 计算两个向量的余弦相似度。
+     * 将向量序列化为 JSON 字符串，用于写入 MySQL embedding 备份字段。
      *
-     * <p>余弦相似度公式：cos(θ) = (A·B) / (|A| × |B|)，
-     * 取值范围 [-1, 1]，值越接近 1 表示两段文本语义越相近。</p>
+     * <p>此方法保持原有接口签名，供 {@link DocumentIngestionService} 调用，
+     * 确保 MySQL 字段与 Elasticsearch 向量索引保持一致性备份。</p>
      *
-     * @param v1 向量 A
-     * @param v2 向量 B
-     * @return 余弦相似度；若任一向量为空或维度不匹配则返回 0.0
+     * @param vector float 数组形式的语义向量
+     * @return JSON 数组字符串，如 {@code [0.12, -0.34, ...]}
      */
-    public double cosineSimilarity(List<Double> v1, List<Double> v2) {
-        if (v1 == null || v2 == null || v1.isEmpty() || v2.isEmpty() || v1.size() != v2.size()) {
-            return 0.0;
+    public String vectorToJson(float[] vector) {
+        StringBuilder sb = new StringBuilder("[");
+        for (int i = 0; i < vector.length; i++) {
+            sb.append(vector[i]);
+            if (i < vector.length - 1) sb.append(",");
         }
-
-        double dotProduct  = 0.0;
-        double normA       = 0.0;
-        double normB       = 0.0;
-
-        for (int i = 0; i < v1.size(); i++) {
-            double a = v1.get(i);
-            double b = v2.get(i);
-            dotProduct += a * b;
-            normA      += a * a;
-            normB      += b * b;
-        }
-
-        if (normA == 0.0 || normB == 0.0) {
-            return 0.0;
-        }
-        return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+        sb.append("]");
+        return sb.toString();
     }
 }

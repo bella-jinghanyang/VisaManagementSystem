@@ -45,12 +45,28 @@ public class VisaKnowledge extends BaseEntity
      */
     private String embedding;
 
+    /**
+     * 原始文档在 MinIO 对象存储中的路径（object name）。
+     * 仅在管理员通过 /upload-doc 接口上传文件时填充；
+     * 手动录入的文本型知识条目此字段为 null。
+     * 示例：美国B1B2签证要求_a1b2c3d4.pdf
+     */
+    private String sourceFile;
+
     public String getEmbedding() {
         return embedding;
     }
 
     public void setEmbedding(String embedding) {
         this.embedding = embedding;
+    }
+
+    public String getSourceFile() {
+        return sourceFile;
+    }
+
+    public void setSourceFile(String sourceFile) {
+        this.sourceFile = sourceFile;
     }
 
     public void setId(Long id)
