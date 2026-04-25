@@ -152,6 +152,8 @@ public class DocumentIngestionService {
      *
      * @param text      已提取或拼接好的纯文本
      * @param knowledge 知识条目元数据（提供 id、title、category）
+     * @throws RuntimeException 若所有文本块均写入 Elasticsearch 失败，则向上抛出异常，
+     *                          告知调用方检查向量化 API 或 ES 连接
      */
     private void ingestText(String text, VisaKnowledge knowledge) {
         // 构建 LangChain4j Document，附加元数据
@@ -168,18 +170,30 @@ public class DocumentIngestionService {
 
         // 对每个文本块进行向量化，并写入 Elasticsearch dense_vector 索引
         int indexed = 0;
+        Exception lastIndexingException = null;
         for (TextSegment segment : segments) {
             try {
                 Response<Embedding> resp = embeddingModel.embed(segment);
                 embeddingStore.add(resp.content(), segment);
                 indexed++;
             } catch (Exception e) {
+                lastIndexingException = e;
                 log.error("向量化或 ES 写入失败：knowledge_id={}, chunk={}, msg={}",
-                        knowledge.getId(), indexed, e.getMessage());
+                        knowledge.getId(), indexed, e.getMessage(), e);
             }
         }
         log.info("Elasticsearch 索引写入完成：knowledge_id={}, 成功块数={}/{}",
                 knowledge.getId(), indexed, segments.size());
+
+        if (indexed == 0 && !segments.isEmpty()) {
+            // 所有分块均写入失败，向上抛出异常让调用方感知真实错误
+            String rootCause = lastIndexingException != null
+                    ? lastIndexingException.getMessage() : "未知原因";
+            throw new RuntimeException(
+                    "所有文本块均写入 Elasticsearch 失败（共 " + segments.size()
+                            + " 块），请检查向量化 API 或 ES 连接。最后一次错误：" + rootCause,
+                    lastIndexingException);
+        }
 
         // 同步更新 MySQL embedding 字段（存第一块向量），保持数据库字段与 ES 的一致性备份
         if (!segments.isEmpty()) {
