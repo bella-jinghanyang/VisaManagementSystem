@@ -232,8 +232,7 @@
                 <configuration>
                     <fork>true</fork> <!-- 如果没有该配置，devtools不会生效 -->
                     <!--
-                        requiresUnpack：让 tika-parsers-standard-package 在 fat jar 中
-                        以解压（非嵌套 jar）方式存在。
+                        requiresUnpack：让以下依赖在 fat jar 中以解压（非嵌套 jar）方式存在。
 
                         原因：Apache Commons Compress 通过 Java ServiceLoader 机制加载
                         ArchiveStreamProvider 实现（META-INF/services 文件）。
@@ -243,11 +242,19 @@
                         的 Office 文档时抛出
                         "No Archiver found for the stream signature"。
                         解压存在后，ServiceLoader 可正确扫描 META-INF/services 文件。
+
+                        同时解压 commons-compress，因为它本身也包含
+                        META-INF/services/org.apache.commons.compress.archivers.ArchiveStreamProvider
+                        文件，在 fat jar 中同样会被覆盖丢失。
                     -->
                     <requiresUnpack>
                         <dependency>
                             <groupId>org.apache.tika</groupId>
                             <artifactId>tika-parsers-standard-package</artifactId>
+                        </dependency>
+                        <dependency>
+                            <groupId>org.apache.commons</groupId>
+                            <artifactId>commons-compress</artifactId>
                         </dependency>
                     </requiresUnpack>
                 </configuration>

@@ -13,6 +13,7 @@ import com.ruoyi.visa.domain.VisaKnowledge;
 import com.ruoyi.visa.mapper.VisaKnowledgeMapper;
 import org.apache.tika.Tika;
 import org.apache.tika.exception.TikaException;
+import java.io.IOException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -107,10 +108,13 @@ public class DocumentIngestionService {
         try (InputStream raw = minioService.getFileStream(objectName);
              BufferedInputStream stream = new BufferedInputStream(raw)) {
             rawText = TIKA.parseToString(stream);
-        } catch (TikaException e) {
+        } catch (TikaException | IOException e) {
             // 在 Spring Boot fat jar 环境下，Commons Compress ServiceLoader 的
             // META-INF/services 文件可能被合并覆盖，导致解析基于 ZIP 格式的 Office 文档
             // （.docx/.xlsx 等）时抛出 "No Archiver found for the stream signature"。
+            // 该错误由 commons-compress 抛出，经由 Tika 内部传播路径可能封装为
+            // IOException（而非 TikaException），因此同时捕获两种异常类型以确保
+            // 降级逻辑对所有 Tika 解析失败场景均可生效。
             // 此处降级使用知识条目的元数据字段（title/category/keywords/content）
             // 拼接文本继续完成摄取，确保知识可被向量化写入 Elasticsearch。
             log.warn("Tika 解析文件失败，降级使用知识条目文本字段继续摄取：" +
