@@ -58,7 +58,7 @@ public interface VisaKnowledgeMapper {
      * @param ids 需要删除的数据主键集合
      * @return 结果
      */
-    public int deleteVisaKnowledgeByIds(Long[] ids);
+    public int deleteVisaKnowledgeByIds(@Param("ids") Long[] ids);
 
     /**
      * 查询所有状态正常的知识条目（含 embedding 字段），用于 RAG 全量检索。
