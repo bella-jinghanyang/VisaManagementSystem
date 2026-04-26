@@ -184,7 +184,7 @@ elasticsearch:
 # docker run -d -p 9000:9000 -p 9001:9001 minio/minio server /data --console-address ":9001"
 minio:
   endpoint: http://localhost:9000
-  accessKey: minioadmin
-  secretKey: minioadmin
+  accessKey: admin
+  secretKey: 12345678
   # 存储知识库文档的 Bucket 名称
   bucketName: visa-knowledge-docs
