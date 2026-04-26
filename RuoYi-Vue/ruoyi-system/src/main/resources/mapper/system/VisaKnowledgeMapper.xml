@@ -88,6 +88,11 @@
         update visa_knowledge set embedding = #{embedding} where id = #{id}
     </update>
 
+    <!-- 仅更新正文内容字段，供文档摄取后持久化 Tika 解析结果使用 -->
+    <update id="updateContentById">
+        update visa_knowledge set content = #{content} where id = #{id}
+    </update>
+
     <delete id="deleteVisaKnowledgeById" parameterType="Long">
         delete from visa_knowledge where id = #{id}
     </delete>

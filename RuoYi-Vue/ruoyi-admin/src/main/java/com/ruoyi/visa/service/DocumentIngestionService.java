@@ -107,6 +107,16 @@ public class DocumentIngestionService {
         try (InputStream raw = minioService.getFileStream(objectName);
              BufferedInputStream stream = new BufferedInputStream(raw)) {
             rawText = TIKA.parseToString(stream);
+
+            // 将 Tika 解析出的正文持久化至 MySQL content 字段，
+            // 确保后续 refreshAllEmbeddings / 管理员预览时均可读取完整原文，
+            // 而不是只有 title/keywords 等元数据。
+            if (rawText != null && !rawText.trim().isEmpty()) {
+                knowledge.setContent(rawText);
+                visaKnowledgeMapper.updateContentById(knowledge.getId(), rawText);
+                log.info("文档原文已持久化至 MySQL content：knowledge_id={}, 字符数={}",
+                        knowledge.getId(), rawText.length());
+            }
         } catch (Exception e) {
             // 在 Spring Boot fat jar 环境下，Commons Compress ServiceLoader 的
             // META-INF/services 文件可能被合并覆盖，导致解析基于 ZIP 格式的 Office 文档
@@ -114,10 +124,16 @@ public class DocumentIngestionService {
             // 该错误由 commons-compress 的 ArchiveStreamFactory 抛出，经由 Apache POI
             // 的调用链后可能被封装为 InvalidOperationException 等 RuntimeException 子类，
             // 因此只捕获 TikaException 或 IOException 不足以拦截所有失败路径。
-            // 捕获顶级 Exception 确保无论异常如何封装，均可触发降级逻辑：
-            // 使用知识条目的元数据字段（title/category/keywords/content）拼接文本，
-            // 继续完成向量化写入 Elasticsearch，不向用户暴露底层解析错误。
-            log.warn("Tika 解析文件失败，降级使用知识条目文本字段继续摄取：" +
+            //
+            // 当 Tika 解析失败且 MySQL content 字段为空时，无可用正文内容可向量化，
+            // 直接返回 MinIO 路径并记录错误；若 MySQL 已存有历史正文（如管理员曾手动录入），
+            // 则降级使用已有 content 继续摄取，避免服务中断。
+            if (knowledge.getContent() == null || knowledge.getContent().trim().isEmpty()) {
+                log.error("Tika 解析文件失败且 content 为空，跳过向量化：" +
+                        "knowledge_id={}, object={}, error={}", knowledge.getId(), objectName, e.getMessage());
+                return objectName;
+            }
+            log.warn("Tika 解析文件失败，降级使用已有 content 字段继续摄取：" +
                     "knowledge_id={}, object={}, error={}", knowledge.getId(), objectName, e.getMessage());
             rawText = buildTextForEmbedding(knowledge);
         }
