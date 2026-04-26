@@ -2,6 +2,7 @@ package com.ruoyi.visa.config;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import co.elastic.clients.elasticsearch._types.mapping.DenseVectorSimilarity;
+import co.elastic.clients.elasticsearch.indices.GetMappingResponse;
 import co.elastic.clients.json.jackson.JacksonJsonpMapper;
 import co.elastic.clients.transport.ElasticsearchTransport;
 import co.elastic.clients.transport.rest_client.RestClientTransport;
@@ -75,7 +76,7 @@ public class AiConfig {
     /**
      * 语义向量化模型 Bean。
      *
-     * <p>接入阿里云 DashScope OpenAI 兼容接口，模型 text-embedding-v4 输出 1536 维浮点向量。
+     * <p>接入阿里云 DashScope OpenAI 兼容接口，模型 text-embedding-v4 输出 1024 维浮点向量。
      * 通过 LangChain4j {@link OpenAiEmbeddingModel} 封装，屏蔽底层 HTTP 协议细节，
      * 支持零代码切换至其他兼容 OpenAI 协议的向量模型。</p>
      */
@@ -175,6 +176,11 @@ public class AiConfig {
      * 若 Elasticsearch 中不存在 {@code indexName} 索引，则创建包含 {@code dense_vector}
      * 字段映射的新索引，使 RAG 检索在知识库为空时也不报 index_not_found_exception。
      *
+     * <p>同时检查已有索引的向量维度配置是否与当前 {@code dimension} 一致。若维度不匹配
+     * （例如之前以 1536 维创建，现在切换至 1024 维模型），将自动删除旧索引并重建，
+     * 避免向量写入时出现 {@code document_parsing_exception}。
+     * 触发迁移时会输出 WARN 级日志，提醒运维人员重新摄取知识库文档。</p>
+     *
      * <p>字段映射与 LangChain4j {@link ElasticsearchEmbeddingStore} 内部约定一致：</p>
      * <ul>
      *   <li>{@code vector}：{@code dense_vector} 类型，开启 kNN 索引，使用余弦相似度；</li>
@@ -185,6 +191,30 @@ public class AiConfig {
     private void ensureIndexExists(ElasticsearchClient esClient) {
         try {
             boolean exists = esClient.indices().exists(r -> r.index(indexName)).value();
+
+            // 若索引已存在，检查 dense_vector 维度是否与当前配置一致
+            if (exists) {
+                try {
+                    GetMappingResponse mapping = esClient.indices().getMapping(r -> r.index(indexName));
+                    var record = mapping.get(indexName);
+                    if (record != null) {
+                        var vectorProp = record.mappings().properties().get("vector");
+                        if (vectorProp != null && vectorProp._kind().name().equalsIgnoreCase("denseVector")) {
+                            Integer existingDims = vectorProp.denseVector().dims();
+                            if (existingDims != null && existingDims != dimension) {
+                                log.warn("Elasticsearch 索引 '{}' 的向量维度（{}）与当前配置（{}）不匹配，" +
+                                        "将自动删除并重建索引。现有向量数据将清空，请在系统启动后重新摄取知识库文档。",
+                                        indexName, existingDims, dimension);
+                                esClient.indices().delete(r -> r.index(indexName));
+                                exists = false;
+                            }
+                        }
+                    }
+                } catch (Exception mappingEx) {
+                    log.warn("读取索引 '{}' 的字段映射失败，跳过维度检查：{}", indexName, mappingEx.getMessage());
+                }
+            }
+
             if (!exists) {
                 esClient.indices().create(r -> r
                         .index(indexName)
@@ -198,7 +228,7 @@ public class AiConfig {
                                 .properties("metadata", pm -> pm.object(o -> o.enabled(false)))));
                 log.info("Elasticsearch 索引 '{}' 已创建（维度={}）", indexName, dimension);
             } else {
-                log.debug("Elasticsearch 索引 '{}' 已存在，跳过创建", indexName);
+                log.debug("Elasticsearch 索引 '{}' 已存在且维度一致，跳过创建", indexName);
             }
         } catch (Exception e) {
             log.warn("Elasticsearch 索引检查/创建失败，将在首次知识摄取时自动创建：{}", e.getMessage());

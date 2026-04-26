@@ -176,8 +176,8 @@ elasticsearch:
   uris: http://localhost:9200
   # 知识库向量索引名称
   indexName: visa-knowledge
-  # 向量维度（与 text-embedding-v4 输出维度一致）
-  dimension: 1536
+  # 向量维度（与 text-embedding-v4 默认输出维度一致，实测为 1024）
+  dimension: 1024
 
 # MinIO 对象存储配置（持久化签证政策原始文档）
 # 本地开发用 docker 启动：
