@@ -155,15 +155,35 @@ public class DocumentIngestionService {
      * <p>适用场景：管理员在后台手动录入文本内容，无需上传文件。
      * 同时兼容批量刷新（{@code refreshAllEmbeddings}）的调用场景。</p>
      *
-     * <p>摄取前自动删除该知识条目在 ES 中的旧版本数据块，
-     * 避免内容修改后产生重复或过时的检索结果。</p>
+     * <p>若条目的 {@code content} 字段为空，但 {@code source_file} 字段指向 MinIO 中的
+     * 已存储文件（通常是首次上传时未能持久化 Tika 结果的历史数据），则自动从 MinIO 重新
+     * 下载并解析原始文档，同时将解析结果回写至 MySQL {@code content} 字段，
+     * 确保后续刷新无需再次访问 MinIO。</p>
      *
-     * @param knowledge 包含 title / category / keywords / content 的知识条目
+     * @param knowledge 包含 title / category / keywords / content / source_file 的知识条目
      */
     @Async
     public void ingestTextAsync(VisaKnowledge knowledge) {
         try {
+            // 若 content 为空但 source_file 存在，从 MinIO 重新解析原始文档并持久化
+            if ((knowledge.getContent() == null || knowledge.getContent().trim().isEmpty())
+                    && knowledge.getSourceFile() != null && !knowledge.getSourceFile().trim().isEmpty()) {
+                log.info("content 为空但 source_file 存在，从 MinIO 重新解析：knowledge_id={}, object={}",
+                        knowledge.getId(), knowledge.getSourceFile());
+                String reparsed = parseFromMinio(knowledge.getSourceFile());
+                if (reparsed != null && !reparsed.trim().isEmpty()) {
+                    knowledge.setContent(reparsed);
+                    visaKnowledgeMapper.updateContentById(knowledge.getId(), reparsed);
+                    log.info("MinIO 重新解析完成，已持久化至 MySQL：knowledge_id={}, 字符数={}",
+                            knowledge.getId(), reparsed.length());
+                }
+            }
+
             String text = buildTextForEmbedding(knowledge);
+            if (text.isEmpty()) {
+                log.warn("知识条目文本为空，跳过向量化：knowledge_id={}", knowledge.getId());
+                return;
+            }
             ingestText(text, knowledge);
         } catch (Exception e) {
             log.error("文本摄取失败：knowledge_id={}, msg={}", knowledge.getId(), e.getMessage(), e);
@@ -256,6 +276,26 @@ public class DocumentIngestionService {
         if (k.getKeywords() != null) sb.append(k.getKeywords()).append(" ");
         if (k.getContent()  != null) sb.append(k.getContent());
         return sb.toString().trim();
+    }
+
+    /**
+     * 从 MinIO 下载原始文档并通过 Apache Tika 提取纯文本。
+     *
+     * <p>用于在 {@code content} 字段为空时，对历史数据进行补偿解析。
+     * 方法内部捕获所有异常并以 {@code null} 返回，调用方负责降级处理。</p>
+     *
+     * @param objectName MinIO 对象路径（来自 {@code visa_knowledge.source_file}）
+     * @return 提取的纯文本；解析失败或结果为空时返回 {@code null}
+     */
+    private String parseFromMinio(String objectName) {
+        try (InputStream raw = minioService.getFileStream(objectName);
+             BufferedInputStream stream = new BufferedInputStream(raw)) {
+            String text = TIKA.parseToString(stream);
+            return (text != null && !text.trim().isEmpty()) ? text : null;
+        } catch (Exception e) {
+            log.warn("从 MinIO 重新解析文件失败，跳过补偿：object={}, error={}", objectName, e.getMessage());
+            return null;
+        }
     }
 
     /**
