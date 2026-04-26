@@ -318,6 +318,12 @@ public class DocumentIngestionService {
         Path tempFile = Files.createTempFile("tika-ingest-", suffix);
         try {
             Files.copy(inputStream, tempFile, StandardCopyOption.REPLACE_EXISTING);
+
+            // 【关键改动】使用更稳定的解析方式，显式传入 Metadata 帮助 Tika 识别格式
+            org.apache.tika.metadata.Metadata metadata = new org.apache.tika.metadata.Metadata();
+            metadata.set(org.apache.tika.metadata.TikaCoreProperties.RESOURCE_NAME_KEY, objectName);
+
+            // 使用单例 Tika 实例解析文件
             return TIKA.parseToString(tempFile.toFile());
         } finally {
             Files.deleteIfExists(tempFile);
