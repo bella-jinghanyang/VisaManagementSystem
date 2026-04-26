@@ -40,9 +40,10 @@
         where id = #{id}
     </select>
 
-    <!-- RAG 专用：拉取全部有效条目，包含 embedding 字段 -->
+    <!-- RAG 专用：拉取全部有效条目，包含 embedding 与 source_file 字段。
+         source_file 用于在 content 缺失时从 MinIO 重新解析原始文档。 -->
     <select id="selectAllActiveWithEmbedding" resultMap="VisaKnowledgeResult">
-        select id, category, title, keywords, content, status, embedding, create_time
+        select id, category, title, keywords, content, status, embedding, source_file, create_time
         from visa_knowledge
         where status = '0'
     </select>
@@ -86,6 +87,11 @@
     <!-- 仅更新向量字段，避免全字段覆盖 -->
     <update id="updateEmbeddingById">
         update visa_knowledge set embedding = #{embedding} where id = #{id}
+    </update>
+
+    <!-- 仅更新正文内容字段，供文档摄取后持久化 Tika 解析结果使用 -->
+    <update id="updateContentById">
+        update visa_knowledge set content = #{content} where id = #{id}
     </update>
 
     <delete id="deleteVisaKnowledgeById" parameterType="Long">

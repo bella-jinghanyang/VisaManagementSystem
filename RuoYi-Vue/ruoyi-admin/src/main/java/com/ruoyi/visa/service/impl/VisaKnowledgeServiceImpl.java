@@ -134,19 +134,6 @@ public class VisaKnowledgeServiceImpl implements IVisaKnowledgeService
         documentIngestionService.ingestTextAsync(knowledge);
     }
 
-    /**
-     * 将知识条目的多个字段拼接为用于向量化的完整文本。
-     * 拼接策略：类别 + 标题 + 关键词 + 正文，涵盖条目的全部语义信息。
-     */
-    private String buildTextForEmbedding(VisaKnowledge k) {
-        StringBuilder sb = new StringBuilder();
-        if (k.getCategory() != null) sb.append(k.getCategory()).append(" ");
-        if (k.getTitle()    != null) sb.append(k.getTitle()).append(" ");
-        if (k.getKeywords() != null) sb.append(k.getKeywords()).append(" ");
-        if (k.getContent()  != null) sb.append(k.getContent());
-        return sb.toString().trim();
-    }
-
 
 }
 

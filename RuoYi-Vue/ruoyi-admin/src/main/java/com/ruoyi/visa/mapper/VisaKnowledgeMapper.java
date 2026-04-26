@@ -58,7 +58,7 @@ public interface VisaKnowledgeMapper {
      * @param ids 需要删除的数据主键集合
      * @return 结果
      */
-    public int deleteVisaKnowledgeByIds(Long[] ids);
+    public int deleteVisaKnowledgeByIds(@Param("ids") Long[] ids);
 
     /**
      * 查询所有状态正常的知识条目（含 embedding 字段），用于 RAG 全量检索。
@@ -73,4 +73,15 @@ public interface VisaKnowledgeMapper {
      */
     public int updateEmbeddingById(@Param("id") Long id,
                                    @Param("embedding") String embedding);
+
+    /**
+     * 仅更新指定条目的正文内容字段。
+     * 供文档摄取流程在 Tika 解析完成后将原文持久化至 MySQL，
+     * 避免全字段覆盖写入影响其他列。
+     *
+     * @param id      知识条目主键
+     * @param content 从 PDF/Word 文件中提取的纯文本正文
+     */
+    public int updateContentById(@Param("id") Long id,
+                                 @Param("content") String content);
 }

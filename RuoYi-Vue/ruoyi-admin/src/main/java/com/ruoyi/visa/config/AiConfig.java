@@ -1,10 +1,12 @@
 package com.ruoyi.visa.config;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
-import co.elastic.clients.elasticsearch._types.mapping.DenseVectorSimilarity;
 import co.elastic.clients.json.jackson.JacksonJsonpMapper;
 import co.elastic.clients.transport.ElasticsearchTransport;
 import co.elastic.clients.transport.rest_client.RestClientTransport;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ruoyi.visa.controller.ClientAiController;
 import dev.langchain4j.data.segment.TextSegment;
 import dev.langchain4j.model.embedding.EmbeddingModel;
 import dev.langchain4j.model.openai.OpenAiEmbeddingModel;
@@ -13,6 +15,10 @@ import dev.langchain4j.model.chat.StreamingChatLanguageModel;
 import dev.langchain4j.store.embedding.elasticsearch.ElasticsearchEmbeddingStore;
 import dev.langchain4j.store.embedding.EmbeddingStore;
 import org.apache.http.HttpHost;
+import org.apache.http.util.EntityUtils;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -75,7 +81,7 @@ public class AiConfig {
     /**
      * 语义向量化模型 Bean。
      *
-     * <p>接入阿里云 DashScope OpenAI 兼容接口，模型 text-embedding-v4 输出 1536 维浮点向量。
+     * <p>接入阿里云 DashScope OpenAI 兼容接口，模型 text-embedding-v4 输出 1024 维浮点向量。
      * 通过 LangChain4j {@link OpenAiEmbeddingModel} 封装，屏蔽底层 HTTP 协议细节，
      * 支持零代码切换至其他兼容 OpenAI 协议的向量模型。</p>
      */
@@ -162,7 +168,7 @@ public class AiConfig {
             RestClient restClient, ElasticsearchClient esClient) {
 
         // 主动确保索引存在，消灭首次检索时的 index_not_found_exception
-        ensureIndexExists(esClient);
+        ensureIndexExists(restClient);
 
         return ElasticsearchEmbeddingStore.builder()
                 .restClient(restClient)
@@ -175,6 +181,14 @@ public class AiConfig {
      * 若 Elasticsearch 中不存在 {@code indexName} 索引，则创建包含 {@code dense_vector}
      * 字段映射的新索引，使 RAG 检索在知识库为空时也不报 index_not_found_exception。
      *
+     * <p>同时检查已有索引的向量维度配置是否与当前 {@code dimension} 一致。若维度不匹配
+     * （例如之前以 1536 维创建，现在切换至 1024 维模型），将自动删除旧索引并重建，
+     * 避免向量写入时出现 {@code document_parsing_exception}。
+     * 触发迁移时会输出 WARN 级日志，提醒运维人员重新摄取知识库文档。</p>
+     *
+     * <p>全部操作通过低层 {@link RestClient} 的原生 HTTP 请求完成，
+     * 不依赖 ES Java 客户端版本特定的类型化 API，具备更好的兼容性。</p>
+     *
      * <p>字段映射与 LangChain4j {@link ElasticsearchEmbeddingStore} 内部约定一致：</p>
      * <ul>
      *   <li>{@code vector}：{@code dense_vector} 类型，开启 kNN 索引，使用余弦相似度；</li>
@@ -182,26 +196,72 @@ public class AiConfig {
      *   <li>{@code metadata}：{@code object} 类型，disabled 以节省资源，按需检索时由 ES 返回。</li>
      * </ul>
      */
-    private void ensureIndexExists(ElasticsearchClient esClient) {
+    private void ensureIndexExists(RestClient restClient) {
         try {
-            boolean exists = esClient.indices().exists(r -> r.index(indexName)).value();
+            // 通过 HEAD 请求检查索引是否存在
+            boolean exists = true;
+            try {
+                restClient.performRequest(new Request("HEAD", "/" + indexName));
+            } catch (ResponseException e) {
+                if (e.getResponse().getStatusLine().getStatusCode() == 404) {
+                    exists = false;
+                }
+            }
+
+            // 若索引已存在，通过 GET _mapping 检查 dense_vector 维度是否与配置一致
+            if (exists) {
+                int existingDims = readExistingDimension(restClient);
+                if (existingDims > 0 && existingDims != dimension) {
+                    log.warn("Elasticsearch 索引 '{}' 的向量维度（{}）与当前配置（{}）不匹配，" +
+                            "将自动删除并重建索引。现有向量数据将清空，请在系统启动后重新摄取知识库文档。",
+                            indexName, existingDims, dimension);
+                    restClient.performRequest(new Request("DELETE", "/" + indexName));
+                    exists = false;
+                }
+            }
+
             if (!exists) {
-                esClient.indices().create(r -> r
-                        .index(indexName)
-                        .mappings(m -> m
-                                .properties("vector", pv -> pv
-                                        .denseVector(dv -> dv
-                                                .dims(dimension)
-                                                .index(true)
-                                                .similarity(DenseVectorSimilarity.Cosine)))
-                                .properties("text", pt -> pt.text(t -> t))
-                                .properties("metadata", pm -> pm.object(o -> o.enabled(false)))));
+                String mappingJson = "{\"mappings\":{\"properties\":{"
+                        + "\"vector\":{\"type\":\"dense_vector\",\"dims\":" + dimension
+                        + ",\"index\":true,\"similarity\":\"cosine\"},"
+                        + "\"text\":{\"type\":\"text\"},"
+                        + "\"metadata\":{\"type\":\"object\",\"enabled\":false}"
+                        + "}}}";
+                Request createReq = new Request("PUT", "/" + indexName);
+                createReq.setJsonEntity(mappingJson);
+                restClient.performRequest(createReq);
                 log.info("Elasticsearch 索引 '{}' 已创建（维度={}）", indexName, dimension);
             } else {
-                log.debug("Elasticsearch 索引 '{}' 已存在，跳过创建", indexName);
+                log.debug("Elasticsearch 索引 '{}' 已存在且维度一致，跳过创建", indexName);
             }
         } catch (Exception e) {
             log.warn("Elasticsearch 索引检查/创建失败，将在首次知识摄取时自动创建：{}", e.getMessage());
         }
+    }
+
+    /**
+     * 通过原生 HTTP 请求读取已有索引的 dense_vector 维度值。
+     *
+     * @return 已有索引的向量维度；若无法读取则返回 -1。
+     */
+    private int readExistingDimension(RestClient restClient) {
+        try {
+            Response response = restClient.performRequest(
+                    new Request("GET", "/" + indexName + "/_mapping"));
+            String body = EntityUtils.toString(response.getEntity());
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode dimsNode = mapper.readTree(body)
+                    .path(indexName)
+                    .path("mappings")
+                    .path("properties")
+                    .path("vector")
+                    .path("dims");
+            if (!dimsNode.isMissingNode()) {
+                return dimsNode.asInt();
+            }
+        } catch (Exception e) {
+            log.warn("读取索引 '{}' 的向量维度失败，跳过维度检查：{}", indexName, e.getMessage());
+        }
+        return -1;
     }
 }

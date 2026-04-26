@@ -12,7 +12,6 @@ import dev.langchain4j.store.embedding.EmbeddingStore;
 import com.ruoyi.visa.domain.VisaKnowledge;
 import com.ruoyi.visa.mapper.VisaKnowledgeMapper;
 import org.apache.tika.Tika;
-import org.apache.tika.exception.TikaException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,8 +19,10 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.BufferedInputStream;
 import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.List;
 
 /**
@@ -100,20 +101,34 @@ public class DocumentIngestionService {
         String objectName = minioService.uploadFile(file);
         log.info("文件已写入 MinIO：knowledge_id={}, object={}", knowledge.getId(), objectName);
 
-        // 步骤 ②：通过 Apache Tika 从文件流中提取纯文本
-        // MinIO 返回的 GetObjectResponse 不原生支持 mark/reset，需包装为 BufferedInputStream，
-        // 使 Tika 的文件类型探测（AutoDetectParser）可正确 reset 流并二次读取。
+        // 步骤 ②：通过 Apache Tika 从文件流中提取纯文本。
+        // 写入临时文件后再解析，使 POI 改走 JDK 内置的 java.util.zip.ZipFile（随机访问）
+        // 而非 commons-compress 的 ZipArchiveInputStream（依赖 ServiceLoader），
+        // 从根本上规避 fat jar 打包时 META-INF/services 文件被覆盖导致的
+        // "No Archiver found for the stream signature" 问题。
         String rawText;
-        try (InputStream raw = minioService.getFileStream(objectName);
-             BufferedInputStream stream = new BufferedInputStream(raw)) {
-            rawText = TIKA.parseToString(stream);
-        } catch (TikaException e) {
-            // 在 Spring Boot fat jar 环境下，Commons Compress ServiceLoader 的
-            // META-INF/services 文件可能被合并覆盖，导致解析基于 ZIP 格式的 Office 文档
-            // （.docx/.xlsx 等）时抛出 "No Archiver found for the stream signature"。
-            // 此处降级使用知识条目的元数据字段（title/category/keywords/content）
-            // 拼接文本继续完成摄取，确保知识可被向量化写入 Elasticsearch。
-            log.warn("Tika 解析文件失败，降级使用知识条目文本字段继续摄取：" +
+        try (InputStream raw = minioService.getFileStream(objectName)) {
+            rawText = parseWithTempFile(raw, objectName);
+
+            // 将 Tika 解析出的正文持久化至 MySQL content 字段，
+            // 确保后续 refreshAllEmbeddings / 管理员预览时均可读取完整原文，
+            // 而不是只有 title/keywords 等元数据。
+            if (rawText != null && !rawText.trim().isEmpty()) {
+                knowledge.setContent(rawText);
+                visaKnowledgeMapper.updateContentById(knowledge.getId(), rawText);
+                log.info("文档原文已持久化至 MySQL content：knowledge_id={}, 字符数={}",
+                        knowledge.getId(), rawText.length());
+            }
+        } catch (Exception e) {
+            // 当 Tika 解析失败且 MySQL content 字段为空时，无可用正文内容可向量化，
+            // 直接返回 MinIO 路径并记录错误；若 MySQL 已存有历史正文（如管理员曾手动录入），
+            // 则降级使用已有 content 继续摄取，避免服务中断。
+            if (knowledge.getContent() == null || knowledge.getContent().trim().isEmpty()) {
+                log.error("Tika 解析文件失败且 content 为空，跳过向量化：" +
+                        "knowledge_id={}, object={}, error={}", knowledge.getId(), objectName, e.getMessage());
+                return objectName;
+            }
+            log.warn("Tika 解析文件失败，降级使用已有 content 字段继续摄取：" +
                     "knowledge_id={}, object={}, error={}", knowledge.getId(), objectName, e.getMessage());
             rawText = buildTextForEmbedding(knowledge);
         }
@@ -135,15 +150,35 @@ public class DocumentIngestionService {
      * <p>适用场景：管理员在后台手动录入文本内容，无需上传文件。
      * 同时兼容批量刷新（{@code refreshAllEmbeddings}）的调用场景。</p>
      *
-     * <p>摄取前自动删除该知识条目在 ES 中的旧版本数据块，
-     * 避免内容修改后产生重复或过时的检索结果。</p>
+     * <p>若条目的 {@code content} 字段为空，但 {@code source_file} 字段指向 MinIO 中的
+     * 已存储文件（通常是首次上传时未能持久化 Tika 结果的历史数据），则自动从 MinIO 重新
+     * 下载并解析原始文档，同时将解析结果回写至 MySQL {@code content} 字段，
+     * 确保后续刷新无需再次访问 MinIO。</p>
      *
-     * @param knowledge 包含 title / category / keywords / content 的知识条目
+     * @param knowledge 包含 title / category / keywords / content / source_file 的知识条目
      */
     @Async
     public void ingestTextAsync(VisaKnowledge knowledge) {
         try {
+            // 若 content 为空但 source_file 存在，从 MinIO 重新解析原始文档并持久化
+            if ((knowledge.getContent() == null || knowledge.getContent().trim().isEmpty())
+                    && knowledge.getSourceFile() != null && !knowledge.getSourceFile().trim().isEmpty()) {
+                log.info("content 为空但 source_file 存在，从 MinIO 重新解析：knowledge_id={}, object={}",
+                        knowledge.getId(), knowledge.getSourceFile());
+                String reparsed = parseFromMinio(knowledge.getSourceFile());
+                if (reparsed != null && !reparsed.trim().isEmpty()) {
+                    knowledge.setContent(reparsed);
+                    visaKnowledgeMapper.updateContentById(knowledge.getId(), reparsed);
+                    log.info("MinIO 重新解析完成，已持久化至 MySQL：knowledge_id={}, 字符数={}",
+                            knowledge.getId(), reparsed.length());
+                }
+            }
+
             String text = buildTextForEmbedding(knowledge);
+            if (text.isEmpty()) {
+                log.warn("知识条目文本为空，跳过向量化：knowledge_id={}", knowledge.getId());
+                return;
+            }
             ingestText(text, knowledge);
         } catch (Exception e) {
             log.error("文本摄取失败：knowledge_id={}, msg={}", knowledge.getId(), e.getMessage(), e);
@@ -236,6 +271,63 @@ public class DocumentIngestionService {
         if (k.getKeywords() != null) sb.append(k.getKeywords()).append(" ");
         if (k.getContent()  != null) sb.append(k.getContent());
         return sb.toString().trim();
+    }
+
+    /**
+     * 从 MinIO 下载原始文档并通过 Apache Tika 提取纯文本。
+     *
+     * <p>用于在 {@code content} 字段为空时，对历史数据进行补偿解析。
+     * 方法内部捕获所有异常并以 {@code null} 返回，调用方负责降级处理。</p>
+     *
+     * @param objectName MinIO 对象路径（来自 {@code visa_knowledge.source_file}）
+     * @return 提取的纯文本；解析失败或结果为空时返回 {@code null}
+     */
+    private String parseFromMinio(String objectName) {
+        try (InputStream raw = minioService.getFileStream(objectName)) {
+            String text = parseWithTempFile(raw, objectName);
+            return (text != null && !text.trim().isEmpty()) ? text : null;
+        } catch (Exception e) {
+            log.warn("从 MinIO 重新解析文件失败，跳过补偿：object={}, error={}", objectName, e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * 将 MinIO 流写入临时文件后由 Apache Tika 解析，规避 fat jar 环境下
+     * commons-compress ServiceLoader 被覆盖导致的 "No Archiver found" 问题。
+     *
+     * <p>当 Tika 通过 {@code InputStream} 解析 .docx/.xlsx 等 Office Open XML 格式时，
+     * 底层 Apache POI 使用 commons-compress 的 {@code ZipArchiveInputStream}，
+     * 该类通过 Java ServiceLoader 加载 {@code ArchiveStreamProvider}。
+     * Spring Boot fat jar 打包时多个 jar 的同名 META-INF/services 文件相互覆盖，
+     * 导致 ServiceLoader 找不到 {@code ZipArchiveStreamProvider}，进而抛出
+     * "No Archiver found for the stream signature"。</p>
+     *
+     * <p>通过临时文件路径解析时，POI 改用 JDK 内置的 {@code java.util.zip.ZipFile}
+     * 进行随机访问读取，完全绕开 commons-compress 的 ServiceLoader 依赖。
+     * 文件扩展名从 objectName 中提取，确保 Tika 的格式探测结果正确。</p>
+     *
+     * @param inputStream MinIO 返回的原始流（调用方负责关闭）
+     * @param objectName  MinIO 对象名（用于提取文件扩展名）
+     * @return Tika 提取的纯文本
+     * @throws Exception IO 异常或 Tika 内部解析异常
+     */
+    private String parseWithTempFile(InputStream inputStream, String objectName) throws Exception {
+        int dotIdx = objectName.lastIndexOf('.');
+        String suffix = dotIdx >= 0 ? objectName.substring(dotIdx) : ".tmp";
+        Path tempFile = Files.createTempFile("tika-ingest-", suffix);
+        try {
+            Files.copy(inputStream, tempFile, StandardCopyOption.REPLACE_EXISTING);
+
+            // 【关键改动】使用更稳定的解析方式，显式传入 Metadata 帮助 Tika 识别格式
+            org.apache.tika.metadata.Metadata metadata = new org.apache.tika.metadata.Metadata();
+            metadata.set(org.apache.tika.metadata.TikaCoreProperties.RESOURCE_NAME_KEY, objectName);
+
+            // 使用单例 Tika 实例解析文件
+            return TIKA.parseToString(tempFile.toFile());
+        } finally {
+            Files.deleteIfExists(tempFile);
+        }
     }
 
     /**
