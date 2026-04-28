@@ -128,10 +128,13 @@ public class VisaKnowledgeController extends BaseController
         }
 
         // 步骤 1：先在 MySQL 中创建知识条目元数据记录
+        // content 置为空字符串以满足数据库 NOT NULL 约束；
+        // 文件的实际文本内容由后续 Tika 提取后写入 Elasticsearch，不存入 MySQL content 列。
         VisaKnowledge knowledge = new VisaKnowledge();
         knowledge.setTitle(title);
         knowledge.setCategory(category);
         knowledge.setKeywords(keywords);
+        knowledge.setContent("");
         knowledge.setStatus("0");
         visaKnowledgeService.insertVisaKnowledge(knowledge);
 
