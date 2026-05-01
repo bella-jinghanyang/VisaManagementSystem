@@ -240,9 +240,10 @@ export default {
       this.isHumanMode = true
       this.messageList.push({ role: 'assistant', content: '正在为您分配签证专员，请稍候...', time: this.getCurrentTime() })
 
-      // 建立连接 (假设后端地址是 localhost:8080)
-      // 注意：这里的 URL 要对应后端 @ServerEndpoint("/websocket/chat/{userId}")
-      const wsUrl = `ws://localhost:8080/websocket/chat/${this.user.id || 'guest'}`
+      // 优先使用环境变量；若未配置则直连后端 8080
+      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+      const wsBase = process.env.VUE_APP_WS_URL || `${wsProtocol}//localhost:8080`
+      const wsUrl = `${wsBase}/websocket/chat/${this.user.id || 'guest'}`
       this.socket = new WebSocket(wsUrl)
 
       this.socket.onopen = () => {

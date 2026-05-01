@@ -106,10 +106,19 @@ export default {
             if (!userStr) return;
             const user = JSON.parse(userStr);
 
-            // 开发环境通过 VUE_APP_WS_URL 直连后端，生产环境自动推导当前 host
-            const wsBase = process.env.VUE_APP_WS_URL ||
-                `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}`;
+            // 关闭旧连接，防止重连时产生连接泄漏
+            if (this.socket && this.socket.readyState !== WebSocket.CLOSED) {
+                this.socket.close();
+            }
+
+            // 优先使用环境变量；若未配置则直连后端 8080（与 AI 咨询页行为一致）
+            const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsBase = process.env.VUE_APP_WS_URL || `${wsProtocol}//localhost:8080`;
             this.socket = new WebSocket(`${wsBase}/websocket/chat/${user.id}`);
+
+            this.socket.onopen = () => {
+                console.log('>>> 人工咨询 WebSocket 连接成功');
+            };
 
             this.socket.onmessage = (e) => {
                 const data = JSON.parse(e.data);
@@ -122,6 +131,10 @@ export default {
                     });
                     this.$nextTick(() => this.scrollToBottom());
                 }
+            };
+
+            this.socket.onclose = () => {
+                console.warn('<<< 人工咨询 WebSocket 连接已断开');
             };
 
             this.socket.onerror = () => {
