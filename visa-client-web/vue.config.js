@@ -1,9 +1,7 @@
 const { defineConfig } = require('@vue/cli-service')
-module.exports = defineConfig({
-  transpileDependencies: true
-})
 
-module.exports = {
+module.exports = defineConfig({
+  transpileDependencies: true,
   devServer: {
     port: 81, // C端端口
     proxy: {
@@ -14,7 +12,13 @@ module.exports = {
         pathRewrite: {
           '^/api': ''
         }
+      },
+      // WebSocket proxy for chat
+      '/websocket': {
+        target: 'http://localhost:8080',
+        ws: true,
+        changeOrigin: true
       }
     }
   }
-}
+})

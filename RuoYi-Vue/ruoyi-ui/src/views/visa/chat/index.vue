@@ -163,7 +163,9 @@ export default {
       // 其他辅助
       uploadUrl: process.env.VUE_APP_BASE_API + "/common/upload",
       headers: { Authorization: "Bearer " + localStorage.getItem('Admin-Token') },
-      applicantListInDialog: []
+      applicantListInDialog: [],
+      // WebSocket 自动重连定时器引用
+      reconnectTimer: null
     };
   },
   async mounted() {
@@ -199,12 +201,31 @@ export default {
     }
   },
   beforeDestroy() {
-    if (this.socket) this.socket.close();
+    // 先清除重连定时器，确保 close 触发的 onclose 不会再次重连
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    if (this.socket) {
+      this.socket.onclose = null;
+      this.socket.close();
+    }
   },
   methods: {
     initWebSocket() {
-      // 检查当前环境地址
-      const wsUrl = "ws://127.0.0.1:8080/websocket/chat/admin";
+      // 清除上一次的自动重连定时器
+      if (this.reconnectTimer) {
+        clearTimeout(this.reconnectTimer);
+        this.reconnectTimer = null;
+      }
+
+      // 关闭旧连接（先摘除 onclose，防止触发重连循环）
+      if (this.socket && this.socket.readyState !== WebSocket.CLOSED) {
+        this.socket.onclose = null;
+        this.socket.close();
+      }
+
+      // 优先使用环境变量；若未配置则直连后端 8080（与用户端行为一致，绕过不稳定的 dev 代理）
+      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsBase = process.env.VUE_APP_WS_URL || `${wsProtocol}//localhost:8080`;
+      const wsUrl = `${wsBase}/websocket/chat/admin`;
       this.socket = new WebSocket(wsUrl);
 
       this.socket.onmessage = (event) => {
@@ -217,11 +238,15 @@ export default {
       };
 
       this.socket.onclose = () => {
-        console.warn("<<< WebSocket 连接已断开");
+        console.warn("<<< WebSocket 连接已断开，3 秒后自动重连...");
+        // clearTimeout 可确保 beforeDestroy 清除定时器后回调不会再执行
+        this.reconnectTimer = setTimeout(() => {
+          this.initWebSocket();
+        }, 3000);
       };
 
       this.socket.onerror = () => {
-        this.$message.error("聊天服务器连接失败，请检查网络或后端状态");
+        this.$message.error("聊天服务暂时不可用，请稍后重试");
       };
     },
 

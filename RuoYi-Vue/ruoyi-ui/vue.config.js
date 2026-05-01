@@ -42,6 +42,12 @@ module.exports = {
           ['^' + process.env.VUE_APP_BASE_API]: ''
         }
       },
+      // WebSocket proxy for chat
+      '/websocket': {
+        target: baseUrl,
+        ws: true,
+        changeOrigin: true
+      },
       // springdoc proxy
       '^/v3/api-docs/(.*)': {
         target: baseUrl,
