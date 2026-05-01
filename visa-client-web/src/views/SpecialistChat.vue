@@ -106,8 +106,9 @@ export default {
             if (!userStr) return;
             const user = JSON.parse(userStr);
 
-            // 注意：这里端口和路径必须和后端匹配
-            this.socket = new WebSocket(`ws://127.0.0.1:8080/websocket/chat/${user.id}`);
+            // 根据当前页面协议自动推导 WebSocket 协议（支持 HTTP 和 HTTPS 部署）
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            this.socket = new WebSocket(`${protocol}//${window.location.host}/websocket/chat/${user.id}`);
 
             this.socket.onmessage = (e) => {
                 const data = JSON.parse(e.data);

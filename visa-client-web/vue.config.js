@@ -14,6 +14,12 @@ module.exports = {
         pathRewrite: {
           '^/api': ''
         }
+      },
+      // WebSocket proxy for chat
+      '/websocket': {
+        target: 'http://localhost:8080',
+        ws: true,
+        changeOrigin: true
       }
     }
   }

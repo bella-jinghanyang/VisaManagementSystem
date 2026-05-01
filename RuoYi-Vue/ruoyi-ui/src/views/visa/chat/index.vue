@@ -203,8 +203,9 @@ export default {
   },
   methods: {
     initWebSocket() {
-      // 检查当前环境地址
-      const wsUrl = "ws://127.0.0.1:8080/websocket/chat/admin";
+      // 根据当前页面协议自动推导 WebSocket 协议（支持 HTTP 和 HTTPS 部署）
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${protocol}//${window.location.host}/websocket/chat/admin`;
       this.socket = new WebSocket(wsUrl);
 
       this.socket.onmessage = (event) => {
