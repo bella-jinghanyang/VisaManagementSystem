@@ -138,7 +138,7 @@ export default {
             };
 
             this.socket.onerror = () => {
-                this.$message && this.$message.error("聊天连接失败，请检查后端是否启动");
+                this.$message && this.$message.error("聊天服务暂时不可用，请稍后重试");
             };
         },
         loadMyOrders() {
