@@ -163,7 +163,9 @@ export default {
       // 其他辅助
       uploadUrl: process.env.VUE_APP_BASE_API + "/common/upload",
       headers: { Authorization: "Bearer " + localStorage.getItem('Admin-Token') },
-      applicantListInDialog: []
+      applicantListInDialog: [],
+      // WebSocket 自动重连定时器引用
+      reconnectTimer: null
     };
   },
   async mounted() {
@@ -199,19 +201,19 @@ export default {
     }
   },
   beforeDestroy() {
-    this._isDestroyed = true;
-    if (this._reconnectTimer) clearTimeout(this._reconnectTimer);
+    // 先清除重连定时器，确保 close 触发的 onclose 不会再次重连
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     if (this.socket) {
-      this.socket.onclose = null; // 防止 close 时触发重连
+      this.socket.onclose = null;
       this.socket.close();
     }
   },
   methods: {
     initWebSocket() {
       // 清除上一次的自动重连定时器
-      if (this._reconnectTimer) {
-        clearTimeout(this._reconnectTimer);
-        this._reconnectTimer = null;
+      if (this.reconnectTimer) {
+        clearTimeout(this.reconnectTimer);
+        this.reconnectTimer = null;
       }
 
       // 关闭旧连接（先摘除 onclose，防止触发重连循环）
@@ -237,8 +239,8 @@ export default {
 
       this.socket.onclose = () => {
         console.warn("<<< WebSocket 连接已断开，3 秒后自动重连...");
-        this._reconnectTimer = setTimeout(() => {
-          if (this._isDestroyed) return;
+        // clearTimeout 可确保 beforeDestroy 清除定时器后回调不会再执行
+        this.reconnectTimer = setTimeout(() => {
           this.initWebSocket();
         }, 3000);
       };
