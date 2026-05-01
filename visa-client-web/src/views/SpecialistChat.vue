@@ -106,9 +106,10 @@ export default {
             if (!userStr) return;
             const user = JSON.parse(userStr);
 
-            // 根据当前页面协议自动推导 WebSocket 协议（支持 HTTP 和 HTTPS 部署）
-            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            this.socket = new WebSocket(`${protocol}//${window.location.host}/websocket/chat/${user.id}`);
+            // 开发环境通过 VUE_APP_WS_URL 直连后端，生产环境自动推导当前 host
+            const wsBase = process.env.VUE_APP_WS_URL ||
+                `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}`;
+            this.socket = new WebSocket(`${wsBase}/websocket/chat/${user.id}`);
 
             this.socket.onmessage = (e) => {
                 const data = JSON.parse(e.data);
@@ -121,6 +122,10 @@ export default {
                     });
                     this.$nextTick(() => this.scrollToBottom());
                 }
+            };
+
+            this.socket.onerror = () => {
+                this.$message && this.$message.error("聊天连接失败，请检查后端是否启动");
             };
         },
         loadMyOrders() {
@@ -155,6 +160,13 @@ export default {
         sendToSpecialist() {
             if (!this.inputText.trim()) return;
             const user = JSON.parse(localStorage.getItem('Client-User'));
+
+            // 检查连接状态，防止在 socket 未就绪时调用 send() 抛异常
+            if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
+                this.$message && this.$message.warning("聊天连接已断开，正在重连...");
+                this.initWebSocket();
+                return;
+            }
 
             const msg = {
                 toUserId: 'admin',

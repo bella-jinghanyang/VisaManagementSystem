@@ -203,9 +203,10 @@ export default {
   },
   methods: {
     initWebSocket() {
-      // 根据当前页面协议自动推导 WebSocket 协议（支持 HTTP 和 HTTPS 部署）
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${protocol}//${window.location.host}/websocket/chat/admin`;
+      // 开发环境通过 VUE_APP_WS_URL 直连后端，生产环境自动推导当前 host
+      const wsBase = process.env.VUE_APP_WS_URL ||
+        `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}`;
+      const wsUrl = `${wsBase}/websocket/chat/admin`;
       this.socket = new WebSocket(wsUrl);
 
       this.socket.onmessage = (event) => {
